@@ -1,0 +1,109 @@
+"""
+GitHub AI Policy File Crawler
+-----------------------------
+Searches GitHub public repositories for AI-related policy or rule files.
+
+Features:
+✅ Uses GitHub Search API (via PyGithub)
+✅ Searches for filenames like ai-rules.md, cothor.md, ai_policy.md, cl.md
+✅ Fetches file metadata and content
+✅ Saves to a local JSON file
+✅ Handles rate limiting safely
+
+Setup:
+1️⃣ pip install PyGithub
+2️⃣ Generate a GitHub Personal Access Token (classic or fine-grained)
+3️⃣ Replace GITHUB_TOKEN below
+"""
+
+import json
+import time
+import json
+import time
+from github import Github, GithubException, RateLimitExceededException, Auth
+
+# --------------------------------------------------
+# CONFIGURATION
+# --------------------------------------------------
+GITHUB_TOKEN = "YOUR_GITHUB_TOKEN_HERE"  # ⚠️ Replace this with your token from .env
+OUTPUT_FILE = "ai_policy_files.json"
+RESULT_LIMIT = 100  # how many files to fetch per run (keep small to avoid rate limits)
+
+
+SEARCH_TERMS = [
+    "filename:.cursorule",
+    "filename:cursorules",
+    "filename:claude.md",
+]
+
+STAR_THRESHOLD = 50  # only include repos with more than 50 stars
+
+# ------------------------------------
+# MAIN FUNCTION
+# ------------------------------------
+def crawl_ai_policy_files():
+    auth = Auth.Token(GITHUB_TOKEN)
+    g = Github(auth=auth)
+
+    all_results = []
+
+    for query in SEARCH_TERMS:
+        print(f"\n🔍 Searching for: {query}")
+        try:
+            results = g.search_code(query)
+        except GithubException as e:
+            print(f"⚠️ GitHub query failed: {e}")
+            continue
+
+        count = 0
+        for file in results:
+            if count >= RESULT_LIMIT:
+                break
+            try:
+                repo = file.repository
+                stars = getattr(repo, "stargazers_count", 0)
+
+                # ✅ Filter: only include popular repos
+                if stars < STAR_THRESHOLD:
+                    continue
+
+                # ✅ Get default branch to construct file link
+                default_branch = getattr(repo, "default_branch", "main")
+
+                # ✅ Construct direct GitHub file URL
+                file_link = f"https://github.com/{repo.full_name}/blob/{default_branch}/{file.path}"
+
+                item = {
+                    "repo_name": repo.full_name,
+                    "repo_url": repo.html_url,
+                    "file_name": file.name,
+                    "file_path": file.path,
+                    "file_url": file_link,
+                    "stars": stars,
+                    "language": repo.language,
+                    "last_push": repo.pushed_at.isoformat() if repo.pushed_at else None,
+                    "content": file.decoded_content.decode("utf-8", errors="ignore"),
+                }
+
+                all_results.append(item)
+                count += 1
+                print(f"✅ Found: {repo.full_name} ({stars}⭐) → {file.name}")
+
+            except RateLimitExceededException:
+                print("⏳ Hit rate limit — sleeping 60s...")
+                time.sleep(60)
+                continue
+            except Exception as e:
+                print(f"⚠️ Skipped a file due to error: {e}")
+                continue
+
+    print(f"\n💾 Saving {len(all_results)} results to {OUTPUT_FILE}...")
+    with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
+        json.dump(all_results, f, indent=2, ensure_ascii=False)
+    print("✅ Done!")
+
+# ------------------------------------
+# ENTRY POINT
+# ------------------------------------
+if __name__ == "__main__":
+    crawl_ai_policy_files()

@@ -1,2 +1,7 @@
 .cursor/
 plan/
+.env
+*.bak
+*.bak.*
+# Legacy/backup files may contain secrets
+legacy_*.py*

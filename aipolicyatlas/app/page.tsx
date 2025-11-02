@@ -1,17 +1,3 @@
-/**
- * Home Page
- * 
- * Main landing page displaying a searchable, sortable grid of policy cards.
- * 
- * Features:
- * - Search bar for filtering policies
- * - Sort options (Top voted, Recent, AI Score)
- * - Responsive grid layout
- * - Uses demo data for now
- * 
- * Reference: plan/blueprint.md - Frontend Features section
- */
-
 "use client";
 
 import { useState, useMemo } from "react";
@@ -29,6 +15,8 @@ type SortOption = "votes" | "recent" | "ai-score";
  * Home Page Component
  */
 export default function Home() {
+
+  // const data = await fetch('https://api.vercel.app/blog')
   // Get all demo policies
   const allPolicies = getAllPolicies();
 
