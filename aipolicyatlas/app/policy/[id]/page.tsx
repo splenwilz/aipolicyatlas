@@ -16,8 +16,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import { ArrowLeft, ExternalLink, Star, GitFork, Code } from "lucide-react";
-import { getPolicyById } from "@/lib/demo-data";
+import { apiGet, ApiError } from "@/lib/api-client";
+import type { Policy } from "@/types/policy";
 import { VoteButton } from "@/components/vote-button";
+import { CopyButton } from "@/components/copy-button";
+import { CopyUrlButton } from "@/components/copy-url-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -41,17 +44,31 @@ interface PolicyDetailPageProps {
 /**
  * Policy Detail Page Component
  * 
- * Server component that fetches and displays policy details.
+ * Server component that fetches and displays policy details from the API.
+ * 
+ * Reference: backend/app/routers/policies.py get_policy endpoint
  */
 export default async function PolicyDetailPage({ params }: PolicyDetailPageProps) {
   // Await params in Next.js 15+ (async params)
   const { id } = await params;
 
-  // Fetch policy data
-  const policy = getPolicyById(id);
-
-  // Show 404 if policy not found
-  if (!policy) {
+  // Fetch policy data from API
+  // Reference: backend/app/routers/policies.py get_policy
+  let policy: Policy;
+  try {
+    policy = await apiGet<Policy>(`/policies/${id}`, {
+      // Cache for 60 seconds to reduce API calls
+      // Reference: https://nextjs.org/docs/app/building-your-application/data-fetching/fetching-caching-and-revalidating
+      next: { revalidate: 60 },
+    });
+  } catch (error) {
+    // Handle 404 or other API errors
+    if (error instanceof ApiError && error.status === 404) {
+      notFound();
+    }
+    // For other errors, also show 404 to avoid exposing error details
+    // In production, you might want to show a proper error page
+    console.error("Failed to fetch policy:", error);
     notFound();
   }
 
@@ -66,7 +83,7 @@ export default async function PolicyDetailPage({ params }: PolicyDetailPageProps
   const netVotes = policy.upvotes_count - policy.downvotes_count;
 
   return (
-    <div className="min-h-screen main-content">
+    <div className="min-h-screen main-content overflow-x-hidden">
       {/* Header with Back Button */}
       <header className="border-b bg-card">
         <div className="container mx-auto px-4 py-4 md:px-6 lg:px-8">
@@ -80,10 +97,10 @@ export default async function PolicyDetailPage({ params }: PolicyDetailPageProps
       </header>
 
       {/* Main Content */}
-      <main className="container mx-auto px-4 py-4 md:px-6 lg:px-8 xl:px-12 max-w-7xl">
-        <div className="grid gap-4 lg:grid-cols-[1fr_320px] xl:grid-cols-[1fr_350px]">
+      <main className="container mx-auto px-4 py-4 md:px-6 lg:px-8 xl:px-12 max-w-7xl overflow-x-hidden">
+        <div className="grid gap-4 lg:grid-cols-[1fr_320px] xl:grid-cols-[1fr_350px] overflow-x-hidden">
           {/* Left Column: Main Content */}
-          <div className="space-y-4">
+          <div className="space-y-4 min-w-0 overflow-x-hidden">
             {/* Policy Header Card */}
             <Card className="gap-4 py-4">
               <CardHeader className="px-6 pb-3">
@@ -104,13 +121,13 @@ export default async function PolicyDetailPage({ params }: PolicyDetailPageProps
                 </div>
               </CardHeader>
 
-              <CardContent className="px-6 pt-0">
+              <CardContent className="px-6 pt-0 overflow-x-hidden">
                 {/* AI Summary */}
                 <div className="space-y-2">
                   <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
                     Summary
                   </h3>
-                  <p className="text-base leading-relaxed">{policy.summary}</p>
+                  <p className="text-base leading-relaxed break-words">{policy.summary}</p>
                 </div>
 
                 {/* Tags */}
@@ -134,29 +151,40 @@ export default async function PolicyDetailPage({ params }: PolicyDetailPageProps
             {/* Policy Content Card */}
             <Card className="gap-4 py-4">
               <CardHeader className="px-6 pb-3">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1">
                 <CardTitle>Policy Content</CardTitle>
                 <CardDescription>
                   Last updated: {formattedDate}
                 </CardDescription>
+                  </div>
+                  {/* Copy Content Button */}
+                  <CopyButton
+                    text={policy.content}
+                    label="Copy Content"
+                    variant="outline"
+                    size="sm"
+                  />
+                </div>
               </CardHeader>
-              <CardContent className="px-6 pt-0">
+              <CardContent className="px-6 pt-0 overflow-x-hidden">
                 {/* Markdown Content */}
-                <div className="prose prose-sm dark:prose-invert max-w-none">
+                <div className="prose prose-sm dark:prose-invert max-w-none overflow-x-hidden">
                   <ReactMarkdown
                     components={{
                       // Customize heading styles
                       h1: ({ node, ...props }) => (
-                        <h1 className="text-2xl font-bold mt-4 mb-3 first:mt-0" {...props} />
+                        <h1 className="text-2xl font-bold mt-4 mb-3 first:mt-0 break-words" {...props} />
                       ),
                       h2: ({ node, ...props }) => (
-                        <h2 className="text-xl font-bold mt-4 mb-2 first:mt-0" {...props} />
+                        <h2 className="text-xl font-bold mt-4 mb-2 first:mt-0 break-words" {...props} />
                       ),
                       h3: ({ node, ...props }) => (
-                        <h3 className="text-lg font-semibold mt-3 mb-2 first:mt-0" {...props} />
+                        <h3 className="text-lg font-semibold mt-3 mb-2 first:mt-0 break-words" {...props} />
                       ),
                       // Style paragraphs
                       p: ({ node, ...props }) => (
-                        <p className="mb-3 leading-relaxed last:mb-0" {...props} />
+                        <p className="mb-3 leading-relaxed last:mb-0 break-words" {...props} />
                       ),
                       // Style lists
                       ul: ({ node, ...props }) => (
@@ -175,7 +203,7 @@ export default async function PolicyDetailPage({ params }: PolicyDetailPageProps
                           />
                         ) : (
                           <code
-                            className="block bg-muted p-3 rounded-md overflow-x-auto text-sm font-mono mb-3 last:mb-0"
+                            className="block bg-muted p-3 rounded-md overflow-x-auto text-sm font-mono mb-3 last:mb-0 break-words"
                             {...props}
                           />
                         );
@@ -243,6 +271,15 @@ export default async function PolicyDetailPage({ params }: PolicyDetailPageProps
                 </div>
 
                 <Separator />
+
+                {/* Copy Policy URL Button */}
+                <CopyUrlButton
+                  path={`/policy/${id}`}
+                  label="Copy Policy Link"
+                  variant="outline"
+                  size="default"
+                  className="w-full"
+                />
 
                 {/* View on GitHub Button */}
                 <a

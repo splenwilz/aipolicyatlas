@@ -75,6 +75,15 @@ class Repository(Base):
         nullable=False,
     )
     
+    # Timestamp when we last crawled this repository for updates
+    # Used for incremental updates: only re-check repos if pushed_at > last_crawled_at
+    # Reference: https://docs.sqlalchemy.org/en/20/core/type_basics.html#sqlalchemy.types.DateTime
+    last_crawled_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        index=True,
+    )
+    
     # Relationship to policies (one-to-many)
     # Reference: https://docs.sqlalchemy.org/en/20/orm/relationships.html
     policies: Mapped[list["Policy"]] = relationship(

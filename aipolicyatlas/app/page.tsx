@@ -1,59 +1,92 @@
-"use client";
-
-import { useState, useMemo } from "react";
-import { PolicyCard } from "@/components/policy-card";
-import { SearchBar } from "@/components/search-bar";
-import { Button } from "@/components/ui/button";
-import { getAllPolicies, searchPolicies, sortPolicies } from "@/lib/demo-data";
-
 /**
- * Sort option type
+ * Home Page Component (Server Component)
+ * 
+ * Fetches policies from the API based on URL search parameters.
+ * Uses search params for state management instead of client-side state.
+ * 
+ * Reference: Next.js Server Components
+ * https://nextjs.org/docs/app/building-your-application/rendering/server-components
+ * 
+ * Reference: Next.js searchParams
+ * https://nextjs.org/docs/app/api-reference/functions/use-search-params
  */
-type SortOption = "votes" | "recent" | "ai-score";
+
+import { PolicyCard } from "@/components/policy-card";
+import { SearchBarUrl } from "@/components/search-bar-url";
+import { SortButtons } from "@/components/sort-buttons";
+import { fetchPoliciesSafe, type PolicySortOption } from "@/lib/policy-api";
 
 /**
  * Home Page Component
+ * 
+ * Server component that:
+ * 1. Reads search params from URL (q, sort_by)
+ * 2. Fetches policies from API based on search params
+ * 3. Renders policies with client components for interactivity
  */
-export default function Home() {
+export default async function Home({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
+  // Await searchParams (required in Next.js 15+)
+  // Reference: https://nextjs.org/docs/app/api-reference/functions/use-search-params
+  const params = await searchParams;
 
-  // const data = await fetch('https://api.vercel.app/blog')
-  // Get all demo policies
-  const allPolicies = getAllPolicies();
+  // Extract search query and sort option from URL params
+  const searchQuery = typeof params.q === "string" ? params.q : "";
+  const sortBy = (typeof params.sort_by === "string" ? params.sort_by : "votes") as PolicySortOption;
 
-  // State for search query
-  const [searchQuery, setSearchQuery] = useState("");
+  // Fetch policies from API using reusable function
+  // Reference: lib/policy-api.ts fetchPolicies
+  const policyData = await fetchPoliciesSafe({
+    searchQuery,
+    sortBy,
+    page: 1,
+    pageSize: 100,
+  });
 
-  // State for sort option
-  const [sortBy, setSortBy] = useState<SortOption>("votes");
+  // Handle API errors gracefully
+  if (!policyData) {
 
-  /**
-   * Filter and sort policies based on current state
-   * 
-   * Memoized to avoid recalculating on every render.
-   */
-  const displayedPolicies = useMemo(() => {
-    // Step 1: Filter by search query
-    const filtered = searchQuery
-      ? searchPolicies(searchQuery)
-      : allPolicies;
+    // Return error state
+    return (
+      <div className="min-h-screen main-content">
+        <header className="border-b bg-[oklch(0.1_0.02_270_/_0.8)] backdrop-blur-xl border-[oklch(0.3_0.1_280_/_0.3)] relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/5 via-purple-500/5 to-pink-500/5 pointer-events-none" />
+          <div className="relative z-10">
+            <div className="container mx-auto px-4 py-8 md:py-12 lg:py-16 md:px-6 lg:px-8 xl:px-12 max-w-7xl">
+              <div className="mb-10 md:mb-12">
+                <div className="inline-block mb-4 px-3 py-1 rounded-full bg-[oklch(0.25_0.1_280_/_0.3)] border border-[oklch(0.4_0.15_280_/_0.4)] text-xs text-purple-300">
+                  AI Policy Atlas • Discover the best policies
+                </div>
+                <h1 className="text-5xl font-bold tracking-tight mb-8 md:mb-10 text-white">
+                  Build, Discover & Learn from{" "}
+                  <span className="bg-gradient-to-r from-cyan-400/80 via-purple-400/80 to-pink-400/80 bg-clip-text text-transparent">
+                    AI Policies
+                  </span>
+                </h1>
+              </div>
+            </div>
+          </div>
+        </header>
+        <main className="container mx-auto px-4 py-6 md:px-6 lg:px-8 xl:px-12 max-w-7xl">
+          <div className="flex flex-col items-center justify-center py-16 text-center">
+            <p className="text-lg font-medium text-muted-foreground mb-2">
+              Failed to load policies
+            </p>
+            <p className="text-sm text-muted-foreground max-w-md">
+              Please try refreshing the page or check if the API server is running.
+            </p>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
-    // Step 2: Sort the filtered results
-    return sortPolicies(filtered, sortBy);
-  }, [searchQuery, sortBy, allPolicies]);
-
-  /**
-   * Handle search query changes from SearchBar
-   */
-  const handleSearch = (query: string) => {
-    setSearchQuery(query);
-  };
-
-  /**
-   * Handle sort option change
-   */
-  const handleSortChange = (newSort: SortOption) => {
-    setSortBy(newSort);
-  };
+  // Extract policies from API response
+  const policies = policyData.items || [];
+  const totalCount = policyData.total || 0;
 
   return (
     <div className="min-h-screen main-content">
@@ -75,52 +108,20 @@ export default function Home() {
               </span>
             </h1>
             <p className="text-lg text-[oklch(0.8_0.02_270)] max-w-2xl">
-              The all-in-one place for developers who want to explore how open-source projects define and govern AI usage.
+                The all-in-one place for developers who want to explore how
+                open-source projects define and govern AI usage.
             </p>
           </div>
 
           {/* Search and Sort Controls */}
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            {/* Search Bar */}
+              {/* Search Bar (Client Component) */}
             <div className="flex-1">
-              <SearchBar
-                onSearch={handleSearch}
-                placeholder="Search by policy name, summary, or tags..."
-              />
-            </div>
-
-            {/* Sort Options */}
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground whitespace-nowrap">
-                Sort by:
-              </span>
-              <div className="flex gap-1 border rounded-md p-1">
-                <Button
-                  variant={sortBy === "votes" ? "default" : "ghost"}
-                  size="sm"
-                  onClick={() => handleSortChange("votes")}
-                  className="text-xs"
-                >
-                  Top Voted
-                </Button>
-                <Button
-                  variant={sortBy === "recent" ? "default" : "ghost"}
-                  size="sm"
-                  onClick={() => handleSortChange("recent")}
-                  className="text-xs"
-                >
-                  Recent
-                </Button>
-                <Button
-                  variant={sortBy === "ai-score" ? "default" : "ghost"}
-                  size="sm"
-                  onClick={() => handleSortChange("ai-score")}
-                  className="text-xs"
-                >
-                  AI Score
-                </Button>
+                <SearchBarUrl placeholder="Search by policy name, summary, or tags..." />
               </div>
-            </div>
+
+              {/* Sort Buttons (Client Component) */}
+              <SortButtons currentSort={sortBy} />
           </div>
         </div>
         </div>
@@ -131,9 +132,9 @@ export default function Home() {
         {/* Results Count */}
         <div className="mb-6">
           <p className="text-sm text-muted-foreground">
-            {displayedPolicies.length === 1
+            {totalCount === 1
               ? "1 policy found"
-              : `${displayedPolicies.length} policies found`}
+              : `${totalCount} policies found`}
             {searchQuery && (
               <span className="ml-2">
                 for &quot;<span className="font-medium">{searchQuery}</span>&quot;
@@ -143,9 +144,9 @@ export default function Home() {
         </div>
 
         {/* Policies Grid */}
-        {displayedPolicies.length > 0 ? (
+        {policies.length > 0 ? (
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4">
-            {displayedPolicies.map((policy) => (
+            {policies.map((policy) => (
               <PolicyCard key={policy.id} policy={policy} />
             ))}
           </div>

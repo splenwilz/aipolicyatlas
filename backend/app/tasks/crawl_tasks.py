@@ -3,10 +3,14 @@ Celery tasks for GitHub crawling.
 
 Converts async crawler service to Celery tasks.
 Reference: https://docs.celeryq.dev/en/stable/userguide/tasks.html
+
+Note: Celery workers fork processes, so we need to create a fresh event loop
+for each task to avoid async SQLAlchemy greenlet issues.
 """
 
 import asyncio
-from typing import Optional
+import sys
+from typing import Literal, Optional
 
 from app.celery_app import celery_app
 from app.config import settings
@@ -17,6 +21,7 @@ from app.services.github_crawler import GitHubCrawler, SEARCH_TERMS
 @celery_app.task(name="app.tasks.crawl_github_policies", bind=True, max_retries=3)
 def crawl_github_policies(
     self,
+    mode: Literal["update", "discover", "both"] = "both",
     result_limit: Optional[int] = None,
     star_threshold: Optional[int] = None,
 ) -> dict:
@@ -64,26 +69,80 @@ def crawl_github_policies(
             }
         
         # Run async crawl in sync context
+        # In Celery workers (forked processes), we need to create a fresh event loop
+        # Reference: https://docs.sqlalchemy.org/en/20/orm/extensions/asyncio.html#using-asyncio-with-multiprocessing-or-os-fork
         # Reference: https://docs.python.org/3/library/asyncio-task.html#running-an-async-function
+        
         async def run_crawl():
             """Run the crawl in async context."""
-            async with async_session_maker() as db:
+            # Create a fresh session for this task
+            # Ensure proper cleanup by explicitly closing the session
+            db = async_session_maker()
+            try:
                 stats = await crawler.crawl(
                     db=db,
+                    mode=mode,
                     result_limit=result_limit,
                     star_threshold=star_threshold,
                 )
+                # Ensure all operations are committed
+                await db.commit()
                 return stats
+            except Exception:
+                # Rollback on error
+                await db.rollback()
+                raise
+            finally:
+                # Always close the session
+                await db.close()
         
-        # Execute async function
-        stats = asyncio.run(run_crawl())
+        # Create a new event loop for this task (required in forked Celery workers)
+        # This ensures async SQLAlchemy greenlet context is properly initialized
+        # Reference: https://docs.sqlalchemy.org/en/20/orm/extensions/asyncio.html#using-asyncio-with-multiprocessing-or-os-fork
+        try:
+            # Try to get existing loop (shouldn't exist in forked process)
+            loop = asyncio.get_event_loop()
+            if loop.is_closed():
+                raise RuntimeError("Loop is closed")
+        except RuntimeError:
+            # No event loop exists or it's closed - create a new one
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
         
-        print(f"\n✅ Crawl completed successfully!")
+        try:
+            # Run the async function
+            stats = loop.run_until_complete(run_crawl())
+        finally:
+            # Clean up: properly close the loop
+            # This prevents "Task got Future attached to different loop" errors
+            try:
+                # Cancel any remaining tasks
+                pending = [t for t in asyncio.all_tasks(loop) if not t.done()]
+                if pending:
+                    for task in pending:
+                        task.cancel()
+                    # Wait for tasks to be cancelled (with timeout)
+                    loop.run_until_complete(
+                        asyncio.wait(pending, timeout=1.0, return_when=asyncio.ALL_COMPLETED)
+                    )
+            except Exception:
+                pass
+            finally:
+                # Close the loop and clear reference
+                try:
+                    loop.close()
+                except Exception:
+                    pass
+                asyncio.set_event_loop(None)
+        
+        print(f"\n✅ Crawl completed successfully! (Mode: {mode})")
         print(f"   Processed: {stats.get('processed', 0)}")
         print(f"   Created: {stats.get('created', 0)}")
         print(f"   Updated: {stats.get('updated', 0)}")
         print(f"   Skipped: {stats.get('skipped', 0)}")
         print(f"   Errors: {stats.get('errors', 0)}")
+        if mode == "update" and "repos_checked" in stats:
+            print(f"   Repos Checked: {stats.get('repos_checked', 0)}")
         
         return {
             "status": "success",

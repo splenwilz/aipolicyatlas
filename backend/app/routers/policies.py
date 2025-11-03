@@ -8,7 +8,7 @@ Reference: https://fastapi.tiangolo.com/tutorial/bigger-applications/
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select, func, or_
+from sqlalchemy import select, func, or_, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -24,21 +24,29 @@ async def get_policies(
     page: int = Query(1, ge=1, description="Page number (1-indexed)"),
     page_size: int = Query(20, ge=1, le=100, description="Items per page"),
     sort_by: str = Query("recent", description="Sort by: votes, recent, ai-score"),
+    language: str | None = Query(None, description="Filter by repository language"),
     db: AsyncSession = Depends(get_db),
 ):
     """
     Get paginated list of policies.
     
-    Supports sorting by:
-    - votes: Net votes (upvotes - downvotes)
-    - recent: Most recently created
-    - ai-score: Highest AI quality score
+    Supports:
+    - Sorting by: votes, recent, ai-score
+    - Filtering by repository language
     
     Reference: https://fastapi.tiangolo.com/tutorial/query-params/
     """
     # Base query with eager loading of repository relationship
+    # Join Repository if language filter is needed
     # Reference: https://docs.sqlalchemy.org/en/20/orm/loading_relationships.html
-    query = select(Policy).options(selectinload(Policy.repo))
+    if language:
+        query = select(Policy).options(selectinload(Policy.repo)).join(Repository)
+    else:
+        query = select(Policy).options(selectinload(Policy.repo))
+    
+    # Filter by repository language (exact match)
+    if language:
+        query = query.where(Repository.language == language)
     
     # Apply sorting
     if sort_by == "votes":
@@ -58,7 +66,13 @@ async def get_policies(
         query = query.order_by(Policy.created_at.desc())
     
     # Get total count (before pagination)
-    count_query = select(func.count()).select_from(Policy)
+    # Build count query with same conditions as main query (excluding sorting/pagination)
+    if language:
+        count_query = select(func.count()).select_from(Policy).join(Repository).where(
+            Repository.language == language
+        )
+    else:
+        count_query = select(func.count()).select_from(Policy)
     total_result = await db.execute(count_query)
     total = total_result.scalar_one()
     
@@ -134,26 +148,36 @@ async def search_policies(
     Reference: https://fastapi.tiangolo.com/tutorial/query-params-strategies/
     """
     # Base query with eager loading
-    query = select(Policy).options(selectinload(Policy.repo))
+    # Join Repository early if we need it for search or language filter
+    # SQLAlchemy will handle duplicate joins gracefully
+    needs_repo_join = bool(q or language)
+    if needs_repo_join:
+        query = select(Policy).options(selectinload(Policy.repo)).join(Repository)
+    else:
+        query = select(Policy).options(selectinload(Policy.repo))
     
     # Apply text search
     if q:
-        # Search in filename, summary, and tags (using PostgreSQL array contains)
+        # Search in filename, summary, tags, and repository language
         # Reference: https://www.postgresql.org/docs/current/functions-array.html
         search_pattern = f"%{q.lower()}%"
-        query = query.where(
-            or_(
+        
+        # Create search conditions including repository language
+        search_conditions = [
                 Policy.filename.ilike(search_pattern),
                 Policy.summary.ilike(search_pattern),
                 # For array search, we'll check if any tag contains the query
                 # This is a simplified approach - in production, use proper full-text search
                 func.array_to_string(Policy.tags, ",").ilike(search_pattern),
-            )
-        )
+            # Search in repository language
+            Repository.language.ilike(search_pattern),
+        ]
+        
+        query = query.where(or_(*search_conditions))
     
-    # Filter by repository language
+    # Filter by repository language (exact match)
     if language:
-        query = query.join(Repository).where(Repository.language == language)
+        query = query.where(Repository.language == language)
     
     # Filter by tag
     if tag:
@@ -203,4 +227,57 @@ async def search_policies(
         total_pages=total_pages,
     )
 
+
+@router.get("/meta/languages")
+async def get_available_languages(db: AsyncSession = Depends(get_db)):
+    """
+    Get all unique repository languages from the database.
+    
+    Returns a list of distinct languages that can be used for filtering.
+    Only includes repositories that have policies associated with them.
+    
+    Reference: https://docs.sqlalchemy.org/en/20/core/functions.html#sqlalchemy.func.distinct
+    """
+    # Query distinct languages from repositories that have policies
+    # Join with policies to ensure we only get languages that actually have policies
+    query = select(func.distinct(Repository.language)).join(
+        Policy, Repository.id == Policy.repo_id
+    ).where(
+        Repository.language.isnot(None)
+    ).order_by(Repository.language)
+    
+    result = await db.execute(query)
+    languages = result.scalars().all()
+    
+    # Filter out None values and return sorted list
+    return {"languages": [lang for lang in languages if lang]}
+
+
+@router.get("/meta/tags")
+async def get_available_tags(db: AsyncSession = Depends(get_db)):
+    """
+    Get all unique tags from policies in the database.
+    
+    Returns a list of distinct tags that can be used for filtering.
+    Uses PostgreSQL unnest to expand array values.
+    
+    Reference: https://www.postgresql.org/docs/current/functions-array.html
+    Reference: https://docs.sqlalchemy.org/en/20/core/functions.html#sqlalchemy.func.unnest
+    """
+    # Query distinct tags from policies
+    # unnest expands the tags array into rows, then we get distinct values
+    # Only include policies that have tags
+    # Execute raw SQL for unnest since SQLAlchemy's func.unnest needs special handling
+    query_text = text("""
+        SELECT DISTINCT unnest(tags) as tag
+        FROM policies
+        WHERE cardinality(tags) > 0
+        ORDER BY tag
+    """)
+    
+    result = await db.execute(query_text)
+    tags = [row.tag for row in result if row.tag]
+    
+    # Return sorted list (already sorted by SQL query)
+    return {"tags": tags}
 

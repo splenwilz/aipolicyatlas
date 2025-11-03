@@ -49,6 +49,13 @@ class Settings(BaseSettings):
     CELERY_BROKER_URL: str = "redis://localhost:6379/0"  # Redis broker URL
     CELERY_RESULT_BACKEND: str = "redis://localhost:6379/0"  # Redis result backend
     
+    # Crawler schedule configuration
+    # Update existing repositories (frequent, checks for changes)
+    CRAWL_UPDATE_INTERVAL: int = 120  # Every 120 seconds (2 minutes)
+    # Discover new repositories (less frequent, searches GitHub)
+    CRAWL_DISCOVERY_INTERVAL: int = 86400  # Every 86400 seconds (24 hours / daily)
+    CRAWL_DISCOVERY_TIME: str = "02:00"  # Daily discovery time (UTC), format: "HH:MM"
+    
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

@@ -1,5 +1,5 @@
 /**
- * Trending Page
+ * Trending Page (Server Component)
  * 
  * Displays policies that are currently trending based on:
  * - High vote activity (recent votes)
@@ -9,65 +9,145 @@
  * Reference: plan/blueprint.md - Home section (Trending)
  */
 
-"use client";
-
-import { useMemo } from "react";
 import Link from "next/link";
 import { PolicyCard } from "@/components/policy-card";
 import { Button } from "@/components/ui/button";
 import { TrendingUp, Flame, ArrowUp } from "lucide-react";
-import { getAllPolicies, sortPolicies } from "@/lib/demo-data";
+import { fetchPoliciesSafe } from "@/lib/policy-api";
 import type { Policy } from "@/types/policy";
 
 /**
  * Calculate trending score for a policy
  * 
- * Combines vote counts, net votes, and recency to determine trending status
+ * Combines multiple factors to determine trending status:
+ * - Net votes (upvotes - downvotes) - shows overall sentiment
+ * - Total votes (engagement level) - shows activity
+ * - Recency (newer policies get boost) - rewards fresh content
+ * - Vote velocity (recent votes weighted more heavily)
+ * 
+ * Algorithm inspired by Reddit's hot algorithm and Hacker News ranking
+ * Reference: https://www.evanmiller.org/how-not-to-sort-by-average-rating.html
  */
 function calculateTrendingScore(policy: Policy): number {
   const netVotes = policy.upvotes_count - policy.downvotes_count;
   const totalVotes = policy.upvotes_count + policy.downvotes_count;
   
-  // Days since creation (more recent = higher score)
+  // Calculate days since creation
   const daysSinceCreation =
     (Date.now() - new Date(policy.created_at).getTime()) / (1000 * 60 * 60 * 24);
-  const recencyScore = Math.max(0, 30 - daysSinceCreation) / 30; // Favor policies created in last 30 days
   
-  // Vote velocity (net votes weighted by recency)
-  const voteScore = netVotes * (1 + recencyScore * 0.5);
+  // Recency score: Favor policies created in the last 30 days
+  // Decays linearly from 1.0 (today) to 0.0 (30+ days ago)
+  const recencyScore = Math.max(0, (30 - daysSinceCreation) / 30);
   
-  // Total engagement score
-  const engagementScore = totalVotes * 0.3 + netVotes * 0.7;
+  // Engagement score: Combination of net votes and total activity
+  // Higher net votes = better, but also reward high engagement
+  const netVoteScore = Math.log(Math.max(1, Math.abs(netVotes) + 1)) * (netVotes >= 0 ? 1 : -0.5);
+  const engagementScore = Math.log(Math.max(1, totalVotes + 1)) * 0.5;
   
-  // Combine scores
-  return voteScore + engagementScore * (1 + recencyScore * 0.3);
+  // Vote velocity: Recent policies with votes get a boost
+  // This rewards policies that are gaining traction quickly
+  const velocityBoost = recencyScore * 1.5;
+  
+  // Combine all factors
+  // Formula: (net vote score + engagement) * (1 + recency boost)
+  const baseScore = netVoteScore + engagementScore;
+  const trendingScore = baseScore * (1 + velocityBoost);
+  
+  // Add AI score bonus (up to 20% boost for high-quality policies)
+  const aiScoreBonus = policy.ai_score ? (policy.ai_score / 100) * 0.2 : 0;
+  
+  return trendingScore * (1 + aiScoreBonus);
 }
 
 /**
  * Trending Page Component
+ * 
+ * Server component that fetches policies and calculates trending scores.
+ * Uses an algorithm that combines votes, engagement, and recency.
  */
-export default function TrendingPage() {
-  // Get all policies
-  const allPolicies = getAllPolicies();
+export default async function TrendingPage() {
+  // Fetch policies from API using reusable function
+  // We fetch both recent and highly-voted policies for better trending calculation
+  // This ensures we catch both new policies gaining traction and popular policies
+  // Reference: lib/policy-api.ts fetchPoliciesSafe
+  const [recentPoliciesData, votedPoliciesData] = await Promise.all([
+    fetchPoliciesSafe({
+      sortBy: "recent", // Get recent policies (new content that might be trending)
+      page: 1,
+      pageSize: 100,
+      cache: { revalidate: 60 },
+    }),
+    fetchPoliciesSafe({
+      sortBy: "votes", // Get highly-voted policies (popular content)
+      page: 1,
+      pageSize: 100,
+      cache: { revalidate: 60 },
+    }),
+  ]);
 
-  /**
-   * Calculate and sort policies by trending score
-   */
-  const trendingPolicies = useMemo(() => {
-    // Calculate trending scores
-    const policiesWithScores = allPolicies.map((policy) => ({
+  // Handle API errors gracefully
+  if (!recentPoliciesData && !votedPoliciesData) {
+    // Return error state
+    return (
+      <div className="min-h-screen main-content">
+        <header className="border-b bg-[oklch(0.1_0.02_270_/_0.8)] backdrop-blur-xl border-[oklch(0.3_0.1_280_/_0.3)] relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/5 via-purple-500/5 to-pink-500/5 pointer-events-none" />
+          <div className="relative z-10">
+            <div className="container mx-auto px-4 py-8 md:py-10 lg:py-12 md:px-6 lg:px-8 xl:px-12 max-w-7xl">
+              <div className="mb-8">
+                <h1 className="text-4xl font-bold tracking-tight text-white">
+                  Trending Policies
+                </h1>
+              </div>
+            </div>
+          </div>
+        </header>
+        <main className="container mx-auto px-4 py-6 md:px-6 lg:px-8 xl:px-12 max-w-7xl">
+          <div className="flex flex-col items-center justify-center py-16 text-center">
+            <p className="text-lg font-medium text-muted-foreground mb-2">
+              Failed to load policies
+            </p>
+            <p className="text-sm text-muted-foreground max-w-md">
+              Please try refreshing the page or check if the API server is running.
+            </p>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  // Combine policies from both sources and deduplicate by ID
+  // This ensures we have a good mix of recent and popular policies
+  const allPoliciesMap = new Map<string, Policy>();
+  
+  if (recentPoliciesData?.items) {
+    recentPoliciesData.items.forEach((policy) => {
+      allPoliciesMap.set(policy.id, policy);
+    });
+  }
+  
+  if (votedPoliciesData?.items) {
+    votedPoliciesData.items.forEach((policy) => {
+      allPoliciesMap.set(policy.id, policy); // Deduplicate by ID
+    });
+  }
+  
+  // Convert map to array for processing
+  const policies = Array.from(allPoliciesMap.values());
+  
+  // Calculate and sort policies by trending score
+  const policiesWithScores = policies.map((policy) => ({
       policy,
       trendingScore: calculateTrendingScore(policy),
     }));
 
-    // Sort by trending score (descending)
-    const sorted = policiesWithScores.sort(
-      (a, b) => b.trendingScore - a.trendingScore
-    );
-
-    // Return top 20 trending policies
-    return sorted.slice(0, 20).map((item) => item.policy);
-  }, [allPolicies]);
+  // Sort by trending score (descending) and get top 20
+  // This gives us the most trending policies based on our algorithm
+  const trendingPolicies = policiesWithScores
+    .sort((a, b) => b.trendingScore - a.trendingScore)
+    .slice(0, 20)
+    .map((item) => item.policy);
 
   return (
     <div className="min-h-screen main-content">
@@ -180,14 +260,13 @@ export default function TrendingPage() {
             How Trending Works
           </h3>
           <p className="text-xs text-muted-foreground leading-relaxed">
-            Trending policies are ranked by a combination of factors including 
-            recent votes, vote velocity (how quickly votes are coming in), 
-            engagement metrics, and recency. Policies that are both popular 
-            and actively being discussed will appear higher in the trending list.
+            Trending policies are ranked by a combination of factors including recent
+            votes, vote velocity (how quickly votes are coming in), engagement metrics,
+            and recency. Policies that are both popular and actively being discussed will
+            appear higher in the trending list.
           </p>
         </div>
       </main>
     </div>
   );
 }
-

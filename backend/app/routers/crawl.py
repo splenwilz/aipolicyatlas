@@ -5,7 +5,10 @@ Provides endpoints for triggering GitHub crawls via Celery.
 Reference: https://fastapi.tiangolo.com/tutorial/bigger-applications/
 """
 
-from fastapi import APIRouter, HTTPException, status
+from typing import Literal
+
+from fastapi import APIRouter, HTTPException, Query, status
+from pydantic import BaseModel
 
 # Import Celery task (with fallback if Celery not available)
 try:
@@ -18,8 +21,18 @@ except ImportError:
 router = APIRouter(prefix="/crawl", tags=["crawl"])
 
 
+class CrawlRequest(BaseModel):
+    """Request body for crawl trigger."""
+    mode: Literal["update", "discover", "both"] = "both"
+
+
 @router.post("/trigger")
-async def trigger_crawl():
+async def trigger_crawl(
+    mode: Literal["update", "discover", "both"] = Query(
+        "both",
+        description="Crawl mode: 'update' (existing repos), 'discover' (new repos), or 'both'"
+    ),
+):
     """
     Trigger a GitHub crawl task via Celery.
     
@@ -29,12 +42,18 @@ async def trigger_crawl():
     3. Task runs in background and stores unique data in database
     4. Deduplicates by repository full_name + file_path
     
+    Modes:
+    - **update**: Only checks existing repositories for updates (efficient, minimal API calls)
+    - **discover**: Only searches GitHub for new repositories (uses more API calls)
+    - **both**: Update existing repos first, then discover new ones (default)
+    
     The crawl task will:
-    - Search GitHub for AI policy files
+    - Search GitHub for AI policy files (discover mode)
+    - Check existing repositories for updates (update mode)
     - Filter by star threshold
     - Store repositories and policies in database
     - Update existing records if content changed
-    - Ensure data uniqueness
+    - Track last_crawled_at timestamps for efficient incremental updates
     
     Reference: https://docs.celeryq.dev/en/stable/userguide/tasks.html
     """
@@ -45,15 +64,16 @@ async def trigger_crawl():
         )
     
     try:
-        # Queue the Celery task
+        # Queue the Celery task with specified mode
         # Reference: https://docs.celeryq.dev/en/stable/userguide/calling.html
-        task = crawl_github_policies.delay()
+        task = crawl_github_policies.delay(mode=mode)
         
         return {
             "status": "queued",
-            "message": "Crawl task queued successfully",
+            "message": f"Crawl task queued successfully (mode: {mode})",
             "task_id": task.id,
-            "check_status": f"/api/crawl/status/{task.id}",
+            "mode": mode,
+            "check_status": f"/api/v1/crawl/status/{task.id}",
         }
     
     except Exception as e:

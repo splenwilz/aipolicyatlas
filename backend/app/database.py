@@ -13,10 +13,14 @@ from app.config import settings
 # Create async engine for PostgreSQL
 # Reference: https://docs.sqlalchemy.org/en/20/core/engines.html#async-engine
 # Using asyncpg driver for async PostgreSQL operations
+# pool_pre_ping=True ensures connections are validated before use (important for Celery workers)
+# Reference: https://docs.sqlalchemy.org/en/20/core/pooling.html#pool-disconnects
 engine = create_async_engine(
     settings.DATABASE_URL,
     echo=True,  # Log SQL queries (disable in production)
     future=True,  # Use SQLAlchemy 2.0 style
+    pool_pre_ping=True,  # Verify connections before using (prevents "operation in progress" errors)
+    pool_recycle=3600,  # Recycle connections after 1 hour
 )
 
 # Create async session factory

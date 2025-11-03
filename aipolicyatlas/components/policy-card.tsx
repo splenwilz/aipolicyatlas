@@ -91,12 +91,49 @@ export function PolicyCard({ policy, className }: PolicyCardProps) {
           </div>
         </CardHeader>
 
-        {/* Card Content: Summary */}
+        {/* Card Content: Summary or Content Snippet */}
         <CardContent className="px-6 py-4">
-          {/* Summary preview - truncate to 3 lines for more content */}
+          {/* Show AI-generated summary if available, otherwise show cleaned content snippet */}
+          {policy.summary && policy.summary.trim() ? (
+            /* AI-generated summary - preferred for consistency and clarity */
           <p className="text-sm text-muted-foreground line-clamp-3 leading-relaxed">
             {policy.summary}
           </p>
+          ) : policy.content && policy.content.trim() ? (
+            /* Fallback: Show snippet of actual markdown content if summary is missing */
+            /* Clean markdown and extract readable text snippet */
+            <p className="text-sm text-muted-foreground line-clamp-3 leading-relaxed">
+              {(() => {
+                // Clean markdown formatting to get readable text
+                let text = policy.content
+                  .replace(/^#+\s+/gm, "") // Remove markdown headers
+                  .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1") // Convert links to text
+                  .replace(/`([^`]+)`/g, "$1") // Remove inline code markers
+                  .replace(/\*\*([^*]+)\*\*/g, "$1") // Remove bold markers
+                  .replace(/\*([^*]+)\*/g, "$1") // Remove italic markers
+                  .replace(/```[\s\S]*?```/g, "[code]") // Replace code blocks
+                  .replace(/\n{2,}/g, " ") // Replace multiple newlines with space
+                  .trim();
+
+                // Get first 200 characters, breaking at word boundary if possible
+                const maxLength = 200;
+                if (text.length > maxLength) {
+                  const truncated = text.substring(0, maxLength);
+                  const lastSpace = truncated.lastIndexOf(" ");
+                  text =
+                    lastSpace > maxLength * 0.8 // Only break at word if close to limit
+                      ? truncated.substring(0, lastSpace) + "..."
+                      : truncated + "...";
+                }
+                return text || "No content preview available";
+              })()}
+            </p>
+          ) : (
+            /* No content available at all */
+            <p className="text-sm text-muted-foreground italic">
+              No content preview available
+            </p>
+          )}
         </CardContent>
 
         {/* Card Footer: Tags, Votes, and Date */}

@@ -38,11 +38,22 @@ celery_app.conf.update(
     # Periodic task schedule (Celery Beat)
     # Reference: https://docs.celeryq.dev/en/stable/userguide/periodic-tasks.html
     beat_schedule={
-        # Crawl GitHub repositories every 2 minutes
-        "crawl-github-policies": {
+        # Update existing repositories (frequent, every 2 minutes)
+        # Only checks repos that may have changed (efficient, uses minimal API calls)
+        "update-existing-repos": {
             "task": "app.tasks.crawl_github_policies",
-            "schedule": 120.0,  # Every 120 seconds (2 minutes)
-            # Alternative: crontab(minute='*/2') for every 2 minutes on the clock
+            "schedule": float(settings.CRAWL_UPDATE_INTERVAL),  # Default: 120 seconds (2 minutes)
+            "kwargs": {"mode": "update"},  # Only update mode, no discovery
+        },
+        # Discover new repositories (less frequent, daily)
+        # Searches GitHub for new policy files (uses more API calls)
+        "discover-new-repos": {
+            "task": "app.tasks.crawl_github_policies",
+            "schedule": crontab(
+                hour=int(settings.CRAWL_DISCOVERY_TIME.split(":")[0]),
+                minute=int(settings.CRAWL_DISCOVERY_TIME.split(":")[1]),
+            ),  # Default: 02:00 UTC daily
+            "kwargs": {"mode": "discover"},  # Only discovery mode
         },
     },
 )
