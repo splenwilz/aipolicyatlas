@@ -26,35 +26,56 @@ class Settings(BaseSettings):
     # PostgreSQL connection string (async)
     # Format: postgresql+asyncpg://user:password@host:port/dbname
     # Reference: https://docs.sqlalchemy.org/en/20/core/engines.html#postgresql
-    DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/aipolicyatlas"
+    # Set via DATABASE_URL environment variable
+    DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql+asyncpg://postgres:postgres@localhost:5432/aipolicyatlas")
     
     # GitHub API configuration
-    GITHUB_TOKEN: str = ""  # GitHub Personal Access Token
+    # Set via GITHUB_TOKEN environment variable (required for GitHub API access)
+    GITHUB_TOKEN: str = os.getenv("GITHUB_TOKEN", "")
     # GitHub API rate limits: https://docs.github.com/en/rest/overview/rate-limits-for-the-rest-api
-    GITHUB_STAR_THRESHOLD: int = 50  # Minimum stars for a repo to be indexed
-    GITHUB_RESULT_LIMIT: int = 100  # Max files to fetch per crawl run
+    # Set via GITHUB_STAR_THRESHOLD environment variable
+    GITHUB_STAR_THRESHOLD: int = int(os.getenv("GITHUB_STAR_THRESHOLD", "50"))
+    # Set via GITHUB_RESULT_LIMIT environment variable
+    GITHUB_RESULT_LIMIT: int = int(os.getenv("GITHUB_RESULT_LIMIT", "100"))
     
     # API configuration
     # API versioning: /api/v1 allows for future version migrations
     # Reference: https://fastapi.tiangolo.com/advanced/versioning/
-    API_PREFIX: str = "/api/v1"
-    CORS_ORIGINS: list[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
+    # Set via API_PREFIX environment variable
+    API_PREFIX: str = os.getenv("API_PREFIX", "/api/v1")
+    # Set via CORS_ORIGINS environment variable (comma-separated list)
+    # Example: CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+    CORS_ORIGINS: list[str] = os.getenv("CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000").split(",")
     
     # Application metadata
-    PROJECT_NAME: str = "AI Policy Atlas API"
-    VERSION: str = "0.1.0"
+    # Set via PROJECT_NAME environment variable
+    PROJECT_NAME: str = os.getenv("PROJECT_NAME", "AI Policy Atlas API")
+    # Set via VERSION environment variable
+    VERSION: str = os.getenv("VERSION", "0.1.0")
     
     # Celery configuration
     # Reference: https://docs.celeryq.dev/en/stable/getting-started/backends-and-brokers/index.html
-    CELERY_BROKER_URL: str = "redis://localhost:6379/0"  # Redis broker URL
-    CELERY_RESULT_BACKEND: str = "redis://localhost:6379/0"  # Redis result backend
+    # For Upstash Redis (TLS-enabled), use: rediss://default:<TOKEN>@<HOST>:6379/0?ssl_cert_reqs=required
+    # For local Redis (no TLS), use: redis://localhost:6379/0
+    # Reference: https://upstash.com/docs/redis/integrations/celery
+    # 
+    # CELERY_BROKER_URL: Message broker (queue) where tasks are sent and workers pick them up
+    # Set via CELERY_BROKER_URL environment variable (defaults to localhost for development)
+    CELERY_BROKER_URL: str = os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/0")
+    # CELERY_RESULT_BACKEND: Storage for task results (can be same as broker or different)
+    # If not set, defaults to same as CELERY_BROKER_URL
+    CELERY_RESULT_BACKEND: str = os.getenv("CELERY_RESULT_BACKEND") or os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/0")
     
     # Crawler schedule configuration
     # Update existing repositories (frequent, checks for changes)
-    CRAWL_UPDATE_INTERVAL: int = 120  # Every 120 seconds (2 minutes)
+    # Set via CRAWL_UPDATE_INTERVAL environment variable (default: 120 seconds / 2 minutes)
+    CRAWL_UPDATE_INTERVAL: int = int(os.getenv("CRAWL_UPDATE_INTERVAL", "120"))
     # Discover new repositories (less frequent, searches GitHub)
-    CRAWL_DISCOVERY_INTERVAL: int = 86400  # Every 86400 seconds (24 hours / daily)
-    CRAWL_DISCOVERY_TIME: str = "02:00"  # Daily discovery time (UTC), format: "HH:MM"
+    # Set via CRAWL_DISCOVERY_INTERVAL environment variable (default: 86400 seconds / 24 hours)
+    CRAWL_DISCOVERY_INTERVAL: int = int(os.getenv("CRAWL_DISCOVERY_INTERVAL", "86400"))
+    # Set via CRAWL_DISCOVERY_TIME environment variable (default: "02:00" UTC)
+    # Format: "HH:MM" (24-hour format)
+    CRAWL_DISCOVERY_TIME: str = os.getenv("CRAWL_DISCOVERY_TIME", "02:00")
     
     model_config = SettingsConfigDict(
         env_file=".env",

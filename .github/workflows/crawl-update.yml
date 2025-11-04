@@ -1,0 +1,49 @@
+name: Crawl Update Existing Repos
+
+on:
+  # Run every 2 hours to update existing repositories
+  schedule:
+    # Cron format: minute hour day month day-of-week
+    # Runs at: 00:00, 02:00, 04:00, 06:00, 08:00, 10:00, 12:00, 14:00, 16:00, 18:00, 20:00, 22:00 UTC
+    - cron: '0 */2 * * *'
+  # Allow manual triggering from GitHub Actions UI
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Crawl mode'
+        required: false
+        default: 'update'
+        type: choice
+        options:
+          - update
+          - discover
+          - both
+
+jobs:
+  trigger-crawl:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Crawl Update
+        env:
+          API_URL: ${{ secrets.API_URL || 'https://backend-black-five-31.vercel.app' }}
+          MODE: ${{ github.event.inputs.mode || 'update' }}
+        run: |
+          echo "Triggering crawl with mode: ${MODE}"
+          response=$(curl -s -w "\n%{http_code}" -X POST "${API_URL}/api/v1/crawl/trigger?mode=${MODE}")
+          
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | sed '$d')
+          
+          echo "Response body: $body"
+          echo "HTTP Status: $http_code"
+          
+          if [ "$http_code" -ge 200 ] && [ "$http_code" -lt 300 ]; then
+            echo "✅ Crawl triggered successfully"
+            echo "$body" | jq '.' || echo "$body"
+          else
+            echo "❌ Failed to trigger crawl"
+            echo "Status: $http_code"
+            echo "Response: $body"
+            exit 1
+          fi
+
