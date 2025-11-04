@@ -5,64 +5,37 @@ Sets up the FastAPI app with all routers, middleware, and database initializatio
 Reference: https://fastapi.tiangolo.com/tutorial/
 """
 
-from contextlib import asynccontextmanager
-
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import text
-from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.config import settings
-from app.database import async_session_maker, engine, Base
+from app.database import async_session_maker, engine
 from app.routers import crawl, policies
 
 # Only import debug toolbar if debug mode is enabled
 if settings.DEBUG:
     from debug_toolbar.middleware import DebugToolbarMiddleware
 
-# Lifespan context manager for startup/shutdown events
+# Note: Lifespan events removed for serverless compatibility
+# Vercel serverless functions don't reliably handle FastAPI lifespan events
+# Database connections are established lazily on first request
 # Reference: https://fastapi.tiangolo.com/advanced/events/
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    """
-    Handle application startup and shutdown.
-    
-    Note: In serverless environments (Vercel), lifespan events work but should be lightweight.
-    Database connections are established lazily on first request to avoid cold-start delays.
-    """
-    # Startup: Minimal initialization for serverless
-    # Don't block on database connection - it will be established on first request
-    print("🚀 FastAPI app starting...")
-    print(f"📋 API Prefix: {settings.API_PREFIX}")
-    print(f"🔧 Debug Mode: {settings.DEBUG}")
-    
-    # Skip database connection test during startup in serverless
-    # This prevents cold-start delays and timeouts
-    # Database connections will be established on first database operation
-    print("💡 Database connections will be established on first use")
-    
-    yield
-    
-    # Shutdown: Clean up database connections
-    # Note: In serverless, this may not always execute due to function termination
-    try:
-        await engine.dispose()
-        print("✅ Database engine closed")
-    except Exception as e:
-        print(f"⚠️  Error closing database engine: {e}")
-        # Ignore errors during shutdown
-
+# For serverless: Avoid lifespan events - they can cause FUNCTION_INVOCATION_FAILED
 
 # Create FastAPI application instance
 # Reference: https://fastapi.tiangolo.com/reference/fastapi/
-
 app = FastAPI(
     title=settings.PROJECT_NAME,
     version=settings.VERSION,
     description="API for AI Policy Atlas - Discover and explore AI policies from GitHub repositories",
-    lifespan=lifespan,
+    # lifespan removed for Vercel serverless compatibility
     debug=settings.DEBUG,  # Controlled via DEBUG environment variable
 )
+
+# Print startup info (runs at module import, safe for serverless)
+print("🚀 FastAPI app initialized")
+print(f"📋 API Prefix: {settings.API_PREFIX}")
+print(f"🔧 Debug Mode: {settings.DEBUG}")
 
 # Configure CORS middleware
 # Reference: https://fastapi.tiangolo.com/tutorial/cors/

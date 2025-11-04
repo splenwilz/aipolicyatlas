@@ -51,17 +51,22 @@ database_url = normalize_database_url(settings.DATABASE_URL)
 # Create async engine for PostgreSQL
 # Reference: https://docs.sqlalchemy.org/en/20/core/engines.html#async-engine
 # Using asyncpg driver for async PostgreSQL operations
-# pool_pre_ping=True ensures connections are validated before use (important for Celery workers)
+# 
+# For serverless (Vercel): Use smaller pool sizes and shorter timeouts
+# Serverless functions are stateless and don't need large connection pools
+# pool_pre_ping=True ensures connections are validated before use
 # Reference: https://docs.sqlalchemy.org/en/20/core/pooling.html#pool-disconnects
 engine = create_async_engine(
     database_url,
-    echo=True,  # Log SQL queries (disable in production)
+    echo=False,  # Disable SQL logging in production (set to True for debugging)
     future=True,  # Use SQLAlchemy 2.0 style
     pool_pre_ping=True,  # Verify connections before using (prevents "operation in progress" errors)
     pool_recycle=3600,  # Recycle connections after 1 hour
-    pool_size=20,  # Increase pool size to handle concurrent requests (default: 5)
-    max_overflow=20,  # Allow overflow connections (default: 10)
-    pool_timeout=30,  # Timeout for getting connection from pool (default: 30)
+    pool_size=5,  # Smaller pool for serverless (was 20, too large for serverless)
+    max_overflow=5,  # Smaller overflow for serverless (was 20)
+    pool_timeout=10,  # Shorter timeout for serverless (was 30)
+    # Don't connect on creation - lazy connection for serverless
+    connect_args={"server_settings": {"application_name": "aipolicyatlas"}},
 )
 
 # Create async session factory
