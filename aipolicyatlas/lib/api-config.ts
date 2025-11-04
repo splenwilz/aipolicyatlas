@@ -10,11 +10,20 @@
 
 /**
  * Base URL for the backend API
- * Defaults to localhost:8000 for development
- * Override with NEXT_PUBLIC_API_URL environment variable
+ * Must be set via NEXT_PUBLIC_API_URL environment variable
+ * 
+ * Example values:
+ * - Development: http://localhost:8000
+ * - Production: https://api.yourdomain.com
  */
-export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
+
+if (!API_BASE_URL) {
+  throw new Error(
+    'NEXT_PUBLIC_API_URL environment variable is required. ' +
+    'Please set it in your .env.local file (development) or environment (production).'
+  );
+}
 
 /**
  * API version prefix (matches backend API_PREFIX)
@@ -25,7 +34,7 @@ export const API_VERSION = '/api/v1';
 
 /**
  * Full API base URL with version prefix
- * Example: http://localhost:8000/api/v1
+ * Example: http://localhost:8000/api/v1 or https://api.yourdomain.com/api/v1
  */
 export const API_URL = `${API_BASE_URL}${API_VERSION}`;
 
