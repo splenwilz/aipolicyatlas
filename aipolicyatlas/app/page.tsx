@@ -14,6 +14,7 @@
 import { PolicyCard } from "@/components/policy-card";
 import { SearchBarUrl } from "@/components/search-bar-url";
 import { SortButtons } from "@/components/sort-buttons";
+import { CopyUrlButton } from "@/components/copy-url-button";
 import { fetchPoliciesSafe, type PolicySortOption } from "@/lib/policy-api";
 
 /**
@@ -58,12 +59,12 @@ export default async function Home({
             <div className="container mx-auto px-4 py-8 md:py-12 lg:py-16 md:px-6 lg:px-8 xl:px-12 max-w-7xl">
               <div className="mb-10 md:mb-12">
                 <div className="inline-block mb-4 px-3 py-1 rounded-full bg-[oklch(0.25_0.1_280_/_0.3)] border border-[oklch(0.4_0.15_280_/_0.4)] text-xs text-purple-300">
-                  AI Policy Atlas • Discover the best policies
+                  Claude & Cursor Policy Directory • Discover AI assistant rules
                 </div>
                 <h1 className="text-5xl font-bold tracking-tight mb-8 md:mb-10 text-white">
-                  Build, Discover & Learn from{" "}
+                  Discover & Learn from{" "}
                   <span className="bg-gradient-to-r from-cyan-400/80 via-purple-400/80 to-pink-400/80 bg-clip-text text-transparent">
-                    AI Policies
+                    Claude.md & .cursorule Files
                   </span>
                 </h1>
               </div>
@@ -99,17 +100,17 @@ export default async function Home({
           {/* Title and Description */}
           <div className="mb-10 md:mb-12">
             <div className="inline-block mb-4 px-3 py-1 rounded-full bg-[oklch(0.25_0.1_280_/_0.3)] border border-[oklch(0.4_0.15_280_/_0.4)] text-xs text-purple-300">
-              AI Policy Atlas • Discover the best policies
+                      Claude & Cursor Policy Directory • Discover AI assistant rules
             </div>
             <h1 className="text-5xl font-bold tracking-tight mb-8 md:mb-10 text-white">
-              Build, Discover & Learn from{" "}
+                      Discover & Learn from{" "}
               <span className="bg-gradient-to-r from-cyan-400/80 via-purple-400/80 to-pink-400/80 bg-clip-text text-transparent">
-                AI Policies
+                        Claude.md & .cursorule Files
               </span>
             </h1>
             <p className="text-lg text-[oklch(0.8_0.02_270)] max-w-2xl">
-                The all-in-one place for developers who want to explore how
-                open-source projects define and govern AI usage.
+                      The all-in-one directory for exploring Claude.md and .cursorule files from GitHub repositories. 
+                      Discover how open-source projects configure their AI coding assistants.
             </p>
           </div>
 
@@ -117,11 +118,22 @@ export default async function Home({
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
               {/* Search Bar (Client Component) */}
             <div className="flex-1">
-                <SearchBarUrl placeholder="Search by policy name, summary, or tags..." />
-              </div>
+                <SearchBarUrl placeholder="Search Claude.md and .cursorule files..." />
+            </div>
 
-              {/* Sort Buttons (Client Component) */}
-              <SortButtons currentSort={sortBy} />
+              {/* Actions: Sort and Copy URL */}
+              <div className="flex items-center gap-3">
+                {/* Sort Buttons (Client Component) */}
+                <SortButtons currentSort={sortBy} />
+                
+                {/* Copy Page URL Button - allows sharing filtered/search results */}
+                <CopyUrlButton
+                  label="Copy Link"
+                  variant="outline"
+                  size="sm"
+                  className="text-xs"
+                />
+            </div>
           </div>
         </div>
         </div>

@@ -2,7 +2,7 @@
  * SearchFilters Component
  * 
  * Client component for advanced search filters that update URL search params.
- * Includes language, tag, and AI score range filters.
+ * Includes language and tag filters.
  * 
  * Reference: Next.js useSearchParams
  * https://nextjs.org/docs/app/api-reference/functions/use-search-params
@@ -30,10 +30,6 @@ interface SearchFiltersProps {
   currentLanguage?: string;
   /** Current tag filter value (from URL) */
   currentTag?: string;
-  /** Current min score value (from URL) */
-  currentMinScore?: string;
-  /** Current max score value (from URL) */
-  currentMaxScore?: string;
   /** Available languages (from API or static list) */
   availableLanguages?: string[];
   /** Available tags (from API or static list) */
@@ -50,8 +46,6 @@ interface SearchFiltersProps {
 export function SearchFilters({
   currentLanguage = "all",
   currentTag = "all",
-  currentMinScore = "0",
-  currentMaxScore = "100",
   availableLanguages = [],
   availableTags = [],
   hasActiveFilters = false,
@@ -64,18 +58,13 @@ export function SearchFilters({
    * Create a new query string by updating a single parameter
    * Preserves all other search params
    * 
-   * Removes default values ("all", "0" for min_score, "100" for max_score)
-   * since they represent no filter being applied.
+   * Removes default values ("all") since they represent no filter being applied.
    */
   const createQueryString = useCallback(
     (name: string, value: string) => {
       const params = new URLSearchParams(searchParams.toString());
-      // Remove param if value is "all" or default values
-      if (
-        value === "all" ||
-        (name === "min_score" && value === "0") ||
-        (name === "max_score" && value === "100")
-      ) {
+      // Remove param if value is "all" (no filter)
+      if (value === "all") {
         params.delete(name);
       } else if (value) {
         // Set the parameter with the new value
@@ -171,50 +160,6 @@ export function SearchFilters({
               ))}
             </SelectContent>
           </Select>
-        </div>
-
-        {/* AI Score Filter */}
-        <div className="flex gap-2">
-          <div className="w-20">
-            <Label htmlFor="min-score" className="text-xs text-muted-foreground mb-1.5 block">
-              Min Score
-            </Label>
-            <Select
-              value={currentMinScore}
-              onValueChange={(value) => updateFilter("min_score", value)}
-            >
-              <SelectTrigger id="min-score" className="h-9">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {[0, 20, 40, 60, 70, 80, 90, 95].map((score) => (
-                  <SelectItem key={score} value={score.toString()}>
-                    {score}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="w-20">
-            <Label htmlFor="max-score" className="text-xs text-muted-foreground mb-1.5 block">
-              Max Score
-            </Label>
-            <Select
-              value={currentMaxScore}
-              onValueChange={(value) => updateFilter("max_score", value)}
-            >
-              <SelectTrigger id="max-score" className="h-9">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {[20, 40, 60, 70, 80, 90, 95, 100].map((score) => (
-                  <SelectItem key={score} value={score.toString()}>
-                    {score}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
         </div>
       </div>
     </div>

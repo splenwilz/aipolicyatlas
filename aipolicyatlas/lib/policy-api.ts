@@ -12,8 +12,10 @@ import type { PolicyListResponse } from "./api-types";
 
 /**
  * Sort option type for policies
+ * 
+ * Only "recent" is available - policies are sorted by creation date (most recent first).
  */
-export type PolicySortOption = "votes" | "recent" | "ai-score";
+export type PolicySortOption = "recent";
 
 /**
  * Parameters for fetching policies
@@ -31,10 +33,6 @@ export interface FetchPoliciesParams {
   language?: string;
   /** Filter by tag */
   tag?: string;
-  /** Minimum AI score (0-100) */
-  minScore?: number;
-  /** Maximum AI score (0-100) */
-  maxScore?: number;
   /** Cache option - 'no-store' for fresh data, or revalidate seconds */
   cache?: "no-store" | { revalidate: number };
 }
@@ -43,27 +41,27 @@ export interface FetchPoliciesParams {
  * Default fetch parameters
  */
 const DEFAULT_PARAMS: Required<Pick<FetchPoliciesParams, "sortBy" | "page" | "pageSize">> = {
-  sortBy: "votes",
+  sortBy: "recent",
   page: 1,
   pageSize: 100,
 };
 
 /**
  * Valid sort options
+ * 
+ * Only "recent" is available - policies sorted by creation date (most recent first).
  */
-const VALID_SORT_OPTIONS: PolicySortOption[] = ["votes", "recent", "ai-score"];
+const VALID_SORT_OPTIONS: PolicySortOption[] = ["recent"];
 
 /**
  * Validate and normalize sort option
  * 
  * @param sortBy - Sort option to validate
- * @returns Validated sort option (defaults to "votes" if invalid)
+ * @returns Always returns "recent" (only valid option)
  */
 function validateSortOption(sortBy?: string): PolicySortOption {
-  if (!sortBy || !VALID_SORT_OPTIONS.includes(sortBy as PolicySortOption)) {
-    return DEFAULT_PARAMS.sortBy;
-  }
-  return sortBy as PolicySortOption;
+  // Only "recent" is valid - always return it
+  return "recent";
 }
 
 /**
@@ -77,16 +75,15 @@ function validateSortOption(sortBy?: string): PolicySortOption {
  * @throws {ApiError} When API request fails
  * 
  * @example
- * // Fetch all policies sorted by votes
- * const policies = await fetchPolicies({ sortBy: "votes" });
+ * // Fetch all policies sorted by recency (default)
+ * const policies = await fetchPolicies();
  * 
  * @example
  * // Search with filters
  * const results = await fetchPolicies({
  *   searchQuery: "AI usage",
- *   sortBy: "ai-score",
  *   language: "Python",
- *   minScore: 70
+ *   tag: "ethics"
  * });
  */
 export async function fetchPolicies(
@@ -99,12 +96,10 @@ export async function fetchPolicies(
     pageSize = DEFAULT_PARAMS.pageSize,
     language,
     tag,
-    minScore,
-    maxScore,
     cache,
   } = params;
 
-  // Validate and normalize sort option
+  // Validate and normalize sort option (always "recent")
   const validatedSortBy = validateSortOption(sortBy);
 
   // Build query parameters
@@ -116,27 +111,21 @@ export async function fetchPolicies(
 
   // Add optional filters
   // Note: language filter is supported by both endpoints
-  // tag, minScore, maxScore are only supported by search endpoint
+  // tag is only supported by search endpoint
   if (language) {
     queryParams.set("language", language);
   }
-  // These filters are only supported by search endpoint
+  // Tag filter is only supported by search endpoint
   if (tag) {
     queryParams.set("tag", tag);
   }
-  if (minScore !== undefined) {
-    queryParams.set("min_score", minScore.toString());
-  }
-  if (maxScore !== undefined) {
-    queryParams.set("max_score", maxScore.toString());
-  }
 
   // Determine endpoint - use search endpoint if there's a search query OR any filters
-  // The search endpoint supports all filters (language, tag, score), while the
+  // The search endpoint supports all filters (language, tag), while the
   // regular endpoint only supports language filter
   // Reference: backend/app/routers/policies.py
   const trimmedQuery = searchQuery.trim();
-  const hasFilters = language || tag || minScore !== undefined || maxScore !== undefined;
+  const hasFilters = language || tag;
   let endpoint: string;
   let cacheOptions: FetchPoliciesParams["cache"];
 
@@ -165,8 +154,18 @@ export async function fetchPolicies(
           next: { revalidate: cacheOptions.revalidate },
         };
 
-  // Fetch from API
-  return apiGet<PolicyListResponse>(`${endpoint}?${queryParams.toString()}`, fetchOptions);
+  // For search queries, use longer timeout (60s) since they may be slower
+  // Regular queries use default timeout (30s)
+  const timeout = trimmedQuery || hasFilters ? 60000 : 30000;
+
+  // Fetch from API with appropriate timeout
+  return apiGet<PolicyListResponse>(
+    `${endpoint}?${queryParams.toString()}`,
+    {
+      ...fetchOptions,
+      timeout,
+    }
+  );
 }
 
 /**

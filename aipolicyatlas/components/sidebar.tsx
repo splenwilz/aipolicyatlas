@@ -15,15 +15,14 @@ import {
   Home,
   Search,
   TrendingUp,
-  Star,
   BookOpen,
   Users,
-  Settings,
-  LogIn,
-  Check,
+  Star,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+
+const GITHUB_REPO_URL = "https://github.com/splenwilz/aipolicyatlas";
 
 /**
  * Navigation items configuration
@@ -35,7 +34,6 @@ const navigationItems = [
       { label: "Home", href: "/", icon: Home },
       { label: "Search", href: "/search", icon: Search },
       { label: "Trending", href: "/trending", icon: TrendingUp },
-      { label: "Top Policies", href: "/top", icon: Star },
     ],
   },
   {
@@ -43,7 +41,6 @@ const navigationItems = [
     items: [
       { label: "Documentation", href: "/docs", icon: BookOpen },
       { label: "Community", href: "/community", icon: Users },
-      { label: "Settings", href: "/settings", icon: Settings },
     ],
   },
 ];
@@ -63,8 +60,8 @@ export function Sidebar() {
             <span className="text-white font-bold text-lg">AI</span>
           </div>
           <div>
-            <h2 className="font-bold text-white text-lg">AI Policy</h2>
-            <p className="text-xs text-[oklch(0.6_0.02_270)]">Atlas</p>
+            <h2 className="font-bold text-white text-lg">Claude & Cursor</h2>
+            <p className="text-xs text-[oklch(0.6_0.02_270)]">Policy Directory</p>
           </div>
         </Link>
       </div>
@@ -102,37 +99,30 @@ export function Sidebar() {
         ))}
       </nav>
 
-      {/* Access Portal Section */}
+      {/* GitHub Star Section */}
       <div className="p-4 border-t border-[oklch(0.2_0.05_270_/_0.5)] space-y-4">
         <div className="space-y-2">
-          <h3 className="text-sm font-semibold text-white">Access Your Portal</h3>
+          <h3 className="text-sm font-semibold text-white">Support the Project</h3>
           <p className="text-xs text-[oklch(0.6_0.02_270)]">
-            Join AI Policy Atlas and access premium features.
+            If you find this project useful, please consider giving it a star on GitHub.
           </p>
         </div>
         
         <Button 
+          asChild
           className="w-full bg-gradient-to-r from-cyan-500 to-purple-500 hover:from-cyan-600 hover:to-purple-600 text-white border-0"
           size="sm"
         >
-          <LogIn className="w-4 h-4 mr-2" />
-          Login
+          <a
+            href={GITHUB_REPO_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-center"
+          >
+            <Star className="w-4 h-4 mr-2 fill-current" />
+            Star on GitHub
+          </a>
         </Button>
-
-        <div className="space-y-2 text-xs text-[oklch(0.6_0.02_270)]">
-          <div className="flex items-center gap-2">
-            <Check className="w-4 h-4 text-cyan-400" />
-            <span>Unlimited policies</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Check className="w-4 h-4 text-cyan-400" />
-            <span>Advanced search</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Check className="w-4 h-4 text-cyan-400" />
-            <span>Premium collections</span>
-          </div>
-        </div>
       </div>
     </aside>
   );

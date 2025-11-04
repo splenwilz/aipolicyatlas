@@ -4,7 +4,7 @@ import { Sidebar } from "@/components/sidebar";
 import "./globals.css";
 
 /**
- * Font configuration for AI Policy Atlas
+ * Font configuration for Claude & Cursor Policy Directory
  * 
  * Geist Sans: Primary sans-serif font for UI
  * Geist Mono: Monospace font for code blocks
@@ -22,7 +22,7 @@ const geistMono = Geist_Mono({
 });
 
 /**
- * Root metadata for AI Policy Atlas
+ * Root metadata for Claude & Cursor Policy Directory
  * 
  * SEO metadata for the entire application. Individual pages can override
  * the title using Next.js metadata API.
@@ -31,35 +31,39 @@ const geistMono = Geist_Mono({
  */
 export const metadata: Metadata = {
   title: {
-    default: "AI Policy Atlas",
-    template: "%s | AI Policy Atlas",
+    default: "Claude & Cursor Policy Directory",
+    template: "%s | Claude & Cursor Policy Directory",
   },
   description:
-    "A searchable, ranked directory of AI-related policy files from GitHub repositories. Explore how open-source projects define and govern AI usage.",
+    "Discover and explore Claude.md and .cursorule files from GitHub repositories. Searchable directory of AI coding assistant policy files used in open-source projects.",
   keywords: [
-    "AI policy",
-    "artificial intelligence governance",
-    "open source AI",
-    "AI ethics",
-    "GitHub policies",
-    "code of conduct",
-    "AI rules",
+    "claude.md",
+    "cursor rules",
+    ".cursorule",
+    "cursorules",
+    "claude policy",
+    "cursor policy",
+    "AI coding assistant",
+    "GitHub AI policies",
+    "claude instructions",
+    "cursor AI rules",
+    "AI assistant policies",
   ],
-  authors: [{ name: "AI Policy Atlas" }],
-  creator: "AI Policy Atlas",
+  authors: [{ name: "Claude & Cursor Policy Directory" }],
+  creator: "Claude & Cursor Policy Directory",
   openGraph: {
     type: "website",
     locale: "en_US",
-    siteName: "AI Policy Atlas",
-    title: "AI Policy Atlas",
+    siteName: "Claude & Cursor Policy Directory",
+    title: "Claude & Cursor Policy Directory",
     description:
-      "Explore how open-source projects define and govern AI usage through their policy files.",
+      "Discover Claude.md and .cursorule files from GitHub. Searchable directory of AI coding assistant policy files.",
   },
   twitter: {
     card: "summary_large_image",
-    title: "AI Policy Atlas",
+    title: "Claude & Cursor Policy Directory",
     description:
-      "A searchable directory of AI-related policy files from GitHub repositories.",
+      "Searchable directory of Claude.md and .cursorule files from GitHub repositories.",
   },
 };
 

@@ -4,8 +4,7 @@
  * Displays the full content of a policy with:
  * - Full markdown content (rendered)
  * - Repository metadata (stars, forks, language)
- * - AI summary and tags
- * - Vote button component
+ * - Summary and tags
  * - Back navigation
  * 
  * Uses Next.js App Router dynamic routes.
@@ -18,7 +17,6 @@ import ReactMarkdown from "react-markdown";
 import { ArrowLeft, ExternalLink, Star, GitFork, Code } from "lucide-react";
 import { apiGet, ApiError } from "@/lib/api-client";
 import type { Policy } from "@/types/policy";
-import { VoteButton } from "@/components/vote-button";
 import { CopyButton } from "@/components/copy-button";
 import { CopyUrlButton } from "@/components/copy-url-button";
 import { Badge } from "@/components/ui/badge";
@@ -79,9 +77,6 @@ export default async function PolicyDetailPage({ params }: PolicyDetailPageProps
     year: "numeric",
   });
 
-  // Calculate net votes
-  const netVotes = policy.upvotes_count - policy.downvotes_count;
-
   return (
     <div className="min-h-screen main-content overflow-x-hidden">
       {/* Header with Back Button */}
@@ -104,7 +99,6 @@ export default async function PolicyDetailPage({ params }: PolicyDetailPageProps
             {/* Policy Header Card */}
             <Card className="gap-4 py-4">
               <CardHeader className="px-6 pb-3">
-                <div className="flex items-start justify-between gap-4">
                   <div className="flex-1">
                     <CardTitle className="text-2xl mb-2">
                       {policy.filename}
@@ -114,10 +108,6 @@ export default async function PolicyDetailPage({ params }: PolicyDetailPageProps
                       <span>·</span>
                       <span>{policy.repo.language}</span>
                     </CardDescription>
-                  </div>
-                  <Badge variant="secondary" className="shrink-0 font-semibold text-base px-3 py-1">
-                    AI Score: {policy.ai_score}/100
-                  </Badge>
                 </div>
               </CardHeader>
 
@@ -219,22 +209,6 @@ export default async function PolicyDetailPage({ params }: PolicyDetailPageProps
 
           {/* Right Column: Sidebar */}
           <div className="space-y-4">
-            {/* Vote Section */}
-            <Card className="gap-3 py-4">
-              <CardHeader className="px-6 pb-3">
-                <CardTitle className="text-lg">Vote</CardTitle>
-                <CardDescription>
-                  Help the community find the best policies
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="px-6 pt-0">
-                <VoteButton
-                  initialUpvotes={policy.upvotes_count}
-                  initialDownvotes={policy.downvotes_count}
-                />
-              </CardContent>
-            </Card>
-
             {/* Repository Info */}
             <Card className="gap-3 py-4">
               <CardHeader className="px-6 pb-3">
@@ -293,47 +267,6 @@ export default async function PolicyDetailPage({ params }: PolicyDetailPageProps
                     View on GitHub
                   </Button>
                 </a>
-              </CardContent>
-            </Card>
-
-            {/* Vote Stats */}
-            <Card className="gap-3 py-4">
-              <CardHeader className="px-6 pb-3">
-                <CardTitle className="text-lg">Community Votes</CardTitle>
-              </CardHeader>
-              <CardContent className="px-6 pt-0">
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Upvotes</span>
-                    <span className="font-medium text-green-600 dark:text-green-400">
-                      {policy.upvotes_count}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Downvotes</span>
-                    <span className="font-medium text-red-600 dark:text-red-400">
-                      {policy.downvotes_count}
-                    </span>
-                  </div>
-                  {netVotes !== 0 && (
-                    <>
-                      <Separator />
-                      <div className="flex items-center justify-between text-sm font-semibold">
-                        <span>Net Votes</span>
-                        <span
-                          className={
-                            netVotes > 0
-                              ? "text-green-600 dark:text-green-400"
-                              : "text-red-600 dark:text-red-400"
-                          }
-                        >
-                          {netVotes > 0 ? "+" : ""}
-                          {netVotes}
-                        </span>
-                      </div>
-                    </>
-                  )}
-                </div>
               </CardContent>
             </Card>
           </div>

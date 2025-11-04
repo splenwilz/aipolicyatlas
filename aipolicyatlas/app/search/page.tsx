@@ -1,14 +1,12 @@
 /**
  * Search Page (Server Component)
  * 
- * Advanced search and filtering page for AI policies.
+ * Advanced search and filtering page for Claude.md and .cursorule files.
  * 
  * Features:
  * - Full-text search
  * - Filter by language
  * - Filter by tags
- * - Filter by AI score range
- * - Sort options
  * - Results display with policy cards
  * 
  * Reference: plan/blueprint.md - Search & Filters section
@@ -47,25 +45,15 @@ export default async function SearchPage({
   const tag = typeof params.tag === "string" && params.tag !== "all"
     ? params.tag
     : undefined;
-  const minScore =
-    typeof params.min_score === "string"
-      ? parseInt(params.min_score, 10)
-      : undefined;
-  const maxScore =
-    typeof params.max_score === "string"
-      ? parseInt(params.max_score, 10)
-      : undefined;
   const sortBy = (typeof params.sort_by === "string"
     ? params.sort_by
-    : "votes") as PolicySortOption;
+    : "recent") as PolicySortOption;
 
   // Check if any filters are active
   const hasActiveFilters =
     !!searchQuery ||
     !!language ||
-    !!tag ||
-    minScore !== undefined ||
-    maxScore !== undefined;
+    !!tag;
 
   // Fetch policies with filters using reusable function
   // Reference: lib/policy-api.ts fetchPolicies
@@ -73,8 +61,6 @@ export default async function SearchPage({
     searchQuery,
     language,
     tag,
-    minScore,
-    maxScore,
     sortBy,
     page: 1,
     pageSize: 100, // Get more results for search
@@ -92,7 +78,7 @@ export default async function SearchPage({
             <div className="container mx-auto px-4 py-8 md:py-10 lg:py-12 md:px-6 lg:px-8 xl:px-12 max-w-7xl">
               <div className="mb-8">
                 <h1 className="text-4xl font-bold tracking-tight mb-3 text-white">
-                  Search AI Policies
+                  Search Claude & Cursor Policies
                 </h1>
               </div>
             </div>
@@ -134,8 +120,6 @@ export default async function SearchPage({
   // Current filter values for display
   const currentLanguage = language || "all";
   const currentTag = tag || "all";
-  const currentMinScore = minScore?.toString() || "0";
-  const currentMaxScore = maxScore?.toString() || "100";
 
   return (
     <div className="min-h-screen main-content">
@@ -148,17 +132,17 @@ export default async function SearchPage({
             {/* Title */}
             <div className="mb-8">
               <h1 className="text-4xl font-bold tracking-tight mb-3 text-white">
-                Search AI Policies
+                Search Claude & Cursor Policies
               </h1>
               <p className="text-sm text-[oklch(0.7_0.02_270)]">
-                Find policies by keywords, tags, language, and AI score
+                Find Claude.md and .cursorule files by keywords, tags, and language
               </p>
             </div>
 
             {/* Search Bar */}
             <div className="mb-8">
               <SearchBarUrl
-                placeholder="Search by policy name, summary, or tags..."
+                placeholder="Search Claude.md and .cursorule files..."
                 className="max-w-2xl"
               />
             </div>
@@ -167,8 +151,6 @@ export default async function SearchPage({
             <SearchFilters
               currentLanguage={currentLanguage}
               currentTag={currentTag}
-              currentMinScore={currentMinScore}
-              currentMaxScore={currentMaxScore}
               availableLanguages={availableLanguages}
               availableTags={availableTags}
               hasActiveFilters={hasActiveFilters}

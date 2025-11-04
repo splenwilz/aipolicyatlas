@@ -21,6 +21,9 @@ engine = create_async_engine(
     future=True,  # Use SQLAlchemy 2.0 style
     pool_pre_ping=True,  # Verify connections before using (prevents "operation in progress" errors)
     pool_recycle=3600,  # Recycle connections after 1 hour
+    pool_size=20,  # Increase pool size to handle concurrent requests (default: 5)
+    max_overflow=20,  # Allow overflow connections (default: 10)
+    pool_timeout=30,  # Timeout for getting connection from pool (default: 30)
 )
 
 # Create async session factory

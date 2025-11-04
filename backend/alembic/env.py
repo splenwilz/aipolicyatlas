@@ -76,8 +76,8 @@ def do_run_migrations(connection: Connection) -> None:
     """Run migrations with the given connection."""
     context.configure(connection=connection, target_metadata=target_metadata)
 
-    with context.begin_transaction():
-        context.run_migrations()
+        with context.begin_transaction():
+            context.run_migrations()
 
 
 async def run_async_migrations() -> None:

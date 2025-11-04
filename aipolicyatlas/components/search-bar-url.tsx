@@ -42,7 +42,7 @@ interface SearchBarUrlProps {
  * Server components can read this from searchParams.
  */
 export function SearchBarUrl({
-  placeholder = "Search policies...",
+  placeholder = "Search Claude.md and .cursorule files...",
   debounceMs = 300,
   className,
 }: SearchBarUrlProps) {
@@ -138,7 +138,7 @@ export function SearchBarUrl({
         value={query}
         onChange={handleChange}
         className="pr-10"
-        aria-label="Search policies"
+        aria-label="Search Claude and Cursor policy files"
       />
 
       {/* Clear Button (only shown when input has value) */}

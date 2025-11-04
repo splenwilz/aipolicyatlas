@@ -401,11 +401,11 @@ class GitHubCrawler:
                             
                             if processed:
                                 count += 1
-                        else:
+                            else:
                             # Repository already exists - discovery mode skips it
                             # Update mode will handle existing repos
-                            stats["skipped"] += 1
-                            continue
+                                stats["skipped"] += 1
+                                continue
                     
                     except RateLimitExceededException:
                         print("⏳ Hit rate limit — sleeping 60s...")
@@ -424,7 +424,7 @@ class GitHubCrawler:
                 continue
         
         return stats
-    
+
     async def crawl(
         self,
         db: AsyncSession,

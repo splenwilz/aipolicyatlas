@@ -23,7 +23,7 @@ router = APIRouter(prefix="/policies", tags=["policies"])
 async def get_policies(
     page: int = Query(1, ge=1, description="Page number (1-indexed)"),
     page_size: int = Query(20, ge=1, le=100, description="Items per page"),
-    sort_by: str = Query("recent", description="Sort by: votes, recent, ai-score"),
+    sort_by: str = Query("recent", description="Sort by: recent (only option available)"),
     language: str | None = Query(None, description="Filter by repository language"),
     db: AsyncSession = Depends(get_db),
 ):
@@ -31,7 +31,7 @@ async def get_policies(
     Get paginated list of policies.
     
     Supports:
-    - Sorting by: votes, recent, ai-score
+    - Sorting by: recent (most recent first)
     - Filtering by repository language
     
     Reference: https://fastapi.tiangolo.com/tutorial/query-params/
@@ -48,21 +48,8 @@ async def get_policies(
     if language:
         query = query.where(Repository.language == language)
     
-    # Apply sorting
-    if sort_by == "votes":
-        # Calculate net votes: upvotes - downvotes, descending
-        # Using func.max() workaround for SQLAlchemy expression
-        query = query.order_by(
-            (Policy.upvotes_count - Policy.downvotes_count).desc()
-        )
-    elif sort_by == "recent":
-        query = query.order_by(Policy.created_at.desc())
-    elif sort_by == "ai-score":
-        query = query.order_by(
-            Policy.ai_score.desc().nulls_last()  # NULLs at the end
-        )
-    else:
-        # Default to recent
+    # Apply sorting - only "recent" is supported
+    # Policies are sorted by creation date (most recent first)
         query = query.order_by(Policy.created_at.desc())
     
     # Get total count (before pagination)
@@ -128,9 +115,7 @@ async def search_policies(
     q: str | None = Query(None, description="Search query (filename, summary, tags)"),
     language: str | None = Query(None, description="Filter by repository language"),
     tag: str | None = Query(None, description="Filter by tag"),
-    min_score: float | None = Query(None, ge=0, le=100, description="Minimum AI score"),
-    max_score: float | None = Query(None, ge=0, le=100, description="Maximum AI score"),
-    sort_by: str = Query("recent", description="Sort by: votes, recent, ai-score"),
+    sort_by: str = Query("recent", description="Sort by: recent (only option available)"),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
@@ -142,8 +127,7 @@ async def search_policies(
     - Full-text search in filename, summary, and tags
     - Filter by repository language
     - Filter by tag
-    - Filter by AI score range
-    - Multiple sort options
+    - Sorting by: recent (most recent first)
     
     Reference: https://fastapi.tiangolo.com/tutorial/query-params-strategies/
     """
@@ -185,28 +169,38 @@ async def search_policies(
         # Reference: https://www.postgresql.org/docs/current/functions-array.html#ARRAY-OPERATORS
         query = query.where(Policy.tags.contains([tag]))
     
-    # Filter by AI score range
-    if min_score is not None:
-        query = query.where(Policy.ai_score >= min_score)
-    if max_score is not None:
-        query = query.where(Policy.ai_score <= max_score)
-    
-    # Apply sorting (same as get_policies)
-    if sort_by == "votes":
-        query = query.order_by(
-            (Policy.upvotes_count - Policy.downvotes_count).desc()
-        )
-    elif sort_by == "recent":
-        query = query.order_by(Policy.created_at.desc())
-    elif sort_by == "ai-score":
-        query = query.order_by(Policy.ai_score.desc().nulls_last())
+    # Get total count BEFORE applying sorting and pagination
+    # Build count query separately for better performance
+    # Count query should have same WHERE conditions but no ORDER BY, LIMIT, or OFFSET
+    if needs_repo_join:
+        count_query = select(func.count(Policy.id)).select_from(Policy).join(Repository)
     else:
-        query = query.order_by(Policy.created_at.desc())
+        count_query = select(func.count(Policy.id)).select_from(Policy)
     
-    # Get total count
-    count_query = select(func.count()).select_from(query.subquery())
+    # Apply same filters to count query
+    if q:
+        search_pattern = f"%{q.lower()}%"
+        search_conditions = [
+            Policy.filename.ilike(search_pattern),
+            Policy.summary.ilike(search_pattern),
+            func.array_to_string(Policy.tags, ",").ilike(search_pattern),
+        ]
+        if needs_repo_join:
+            search_conditions.append(Repository.language.ilike(search_pattern))
+        count_query = count_query.where(or_(*search_conditions))
+    
+    if language:
+        count_query = count_query.where(Repository.language == language)
+    
+    if tag:
+        count_query = count_query.where(Policy.tags.contains([tag]))
+    
     total_result = await db.execute(count_query)
     total = total_result.scalar_one()
+    
+    # Apply sorting - only "recent" is supported
+    # Policies are sorted by creation date (most recent first)
+    query = query.order_by(Policy.created_at.desc())
     
     # Apply pagination
     offset = (page - 1) * page_size

@@ -5,15 +5,19 @@
  * - Policy title (filename)
  * - Repository name and metadata
  * - Summary preview
- * - Vote counts
  * - Tags
- * - AI score
+ * - Creation date
+ * - Copy policy URL button
  * 
  * Uses shadcn/ui Card component for consistent styling.
  * Reference: https://ui.shadcn.com/docs/components/card
  */
 
+"use client";
+
 import Link from "next/link";
+import { useState, useEffect } from "react";
+import { Star, GitFork } from "lucide-react";
 import type { Policy } from "@/types/policy";
 import {
   Card,
@@ -24,6 +28,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { CopyButton } from "@/components/copy-button";
 import { cn } from "@/lib/utils";
 
 /**
@@ -43,15 +48,25 @@ interface PolicyCardProps {
  * Displays key information in a compact, scannable format.
  */
 export function PolicyCard({ policy, className }: PolicyCardProps) {
-  // Calculate net votes for display
-  const netVotes = policy.upvotes_count - policy.downvotes_count;
-
   // Format date for display (e.g., "Jan 15, 2024")
   const formattedDate = new Date(policy.created_at).toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
     year: "numeric",
   });
+
+  // Get origin URL only on client side to avoid hydration mismatch
+  // Use useState and useEffect to ensure it's only set after mount
+  // Reference: https://nextjs.org/docs/messages/react-hydration-error
+  const [policyUrl, setPolicyUrl] = useState(`/policy/${policy.id}`);
+  
+  useEffect(() => {
+    // Set full URL only after component mounts on client
+    // This prevents hydration mismatch between server and client
+    if (typeof window !== "undefined") {
+      setPolicyUrl(`${window.location.origin}/policy/${policy.id}`);
+    }
+  }, [policy.id]);
 
   return (
     <Link href={`/policy/${policy.id}`} className="block">
@@ -63,7 +78,7 @@ export function PolicyCard({ policy, className }: PolicyCardProps) {
       >
         {/* Card Header: Title and Repo Info */}
         <CardHeader className="px-6 pt-6 pb-4">
-          <div className="flex items-start justify-between gap-4">
+          <div className="flex items-start justify-between gap-3">
             <div className="flex-1 min-w-0">
               {/* Policy filename as title */}
               <CardTitle className="text-lg mb-2 line-clamp-2">
@@ -71,23 +86,42 @@ export function PolicyCard({ policy, className }: PolicyCardProps) {
               </CardTitle>
               
               {/* Repository name with link */}
-              <CardDescription className="flex items-center gap-2">
+              <CardDescription className="flex items-center gap-2 flex-wrap">
                 <span className="font-medium text-foreground">
                   {policy.repo.full_name}
                 </span>
                 <span className="text-muted-foreground">·</span>
                 <span className="text-muted-foreground">{policy.repo.language}</span>
+                
+                {/* GitHub Stars */}
+                <div className="flex items-center gap-1 text-muted-foreground">
+                  <Star className="h-3 w-3 fill-current" />
+                  <span className="text-xs">{policy.repo.stars.toLocaleString()}</span>
+                </div>
+                
+                {/* GitHub Forks */}
+                <div className="flex items-center gap-1 text-muted-foreground">
+                  <GitFork className="h-3 w-3" />
+                  <span className="text-xs">{policy.repo.forks.toLocaleString()}</span>
+                </div>
               </CardDescription>
             </div>
 
-            {/* AI Score Badge */}
-            <Badge
-              variant="secondary"
-              className="shrink-0 font-semibold bg-gradient-to-r from-cyan-500/20 to-purple-500/20 border-cyan-400/30 text-cyan-300"
-              title="AI Quality Score"
+            {/* Copy Policy URL Button */}
+            {/* Stops event propagation to prevent card link navigation */}
+            <div
+              onClick={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
+              className="shrink-0"
             >
-              {policy.ai_score}/100
-            </Badge>
+              <CopyButton
+                text={policyUrl}
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                label="Copy policy link"
+              />
+            </div>
           </div>
         </CardHeader>
 
@@ -136,7 +170,7 @@ export function PolicyCard({ policy, className }: PolicyCardProps) {
           )}
         </CardContent>
 
-        {/* Card Footer: Tags, Votes, and Date */}
+        {/* Card Footer: Tags and Date */}
         <CardFooter className="flex flex-col gap-4 px-6 pb-6 pt-4">
           {/* Tags */}
           {policy.tags.length > 0 && (
@@ -158,36 +192,8 @@ export function PolicyCard({ policy, className }: PolicyCardProps) {
             </div>
           )}
 
-          {/* Bottom Row: Votes and Date */}
-          <div className="flex items-center justify-between w-full text-xs text-muted-foreground">
-            {/* Vote counts */}
-            <div className="flex items-center gap-4">
-              <span className="flex items-center gap-1">
-                <span className="text-cyan-400 font-medium">
-                  ↑ {policy.upvotes_count}
-                </span>
-              </span>
-              <span className="flex items-center gap-1">
-                <span className="text-pink-400 font-medium">
-                  ↓ {policy.downvotes_count}
-                </span>
-              </span>
-              {netVotes !== 0 && (
-                <span
-                  className={cn(
-                    "font-medium",
-                    netVotes > 0
-                      ? "text-cyan-400"
-                      : "text-pink-400"
-                  )}
-                >
-                  {netVotes > 0 ? "+" : ""}
-                  {netVotes} net
-                </span>
-              )}
-            </div>
-
             {/* Date */}
+          <div className="flex items-center justify-end w-full text-xs text-muted-foreground">
             <span>{formattedDate}</span>
           </div>
         </CardFooter>
