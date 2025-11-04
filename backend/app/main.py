@@ -47,7 +47,7 @@ app = FastAPI(
     version=settings.VERSION,
     description="API for AI Policy Atlas - Discover and explore AI policies from GitHub repositories",
     lifespan=lifespan,
-    debug=True,
+    debug=settings.DEBUG,  # Controlled via DEBUG environment variable
 )
 
 # Configure CORS middleware

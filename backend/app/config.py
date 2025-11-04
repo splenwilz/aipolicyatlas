@@ -52,6 +52,10 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = os.getenv("PROJECT_NAME", "AI Policy Atlas API")
     # Set via VERSION environment variable
     VERSION: str = os.getenv("VERSION", "0.1.0")
+    # Debug mode - enable for detailed error messages and debug toolbar
+    # Set via DEBUG environment variable (default: False for production)
+    # Set DEBUG=true in Vercel environment variables to enable debugging
+    DEBUG: bool = os.getenv("DEBUG", "false").lower() in ("true", "1", "yes")
     
     # Celery configuration
     # Reference: https://docs.celeryq.dev/en/stable/getting-started/backends-and-brokers/index.html

@@ -8,6 +8,10 @@ Reference: https://vercel.com/docs/functions/serverless-functions/runtimes/pytho
 from app.main import app
 
 # Export the FastAPI app for Vercel
-# Vercel will automatically handle ASGI apps
+# Vercel's Python runtime automatically detects ASGI apps when exported as 'app'
+# Alternative: export as 'handler' if 'app' doesn't work
 __all__ = ["app"]
+
+# Explicitly export as handler for Vercel compatibility
+handler = app
 
