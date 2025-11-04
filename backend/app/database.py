@@ -46,7 +46,10 @@ def normalize_database_url(url: str) -> str:
     
     return url
 
-database_url = normalize_database_url(settings.DATABASE_URL)
+# Normalize database URL (lazy - only when needed)
+def get_database_url() -> str:
+    """Get normalized database URL."""
+    return normalize_database_url(settings.DATABASE_URL)
 
 # Create async engine for PostgreSQL
 # Reference: https://docs.sqlalchemy.org/en/20/core/engines.html#async-engine
@@ -56,27 +59,46 @@ database_url = normalize_database_url(settings.DATABASE_URL)
 # Serverless functions are stateless and don't need large connection pools
 # pool_pre_ping=True ensures connections are validated before use
 # Reference: https://docs.sqlalchemy.org/en/20/core/pooling.html#pool-disconnects
-engine = create_async_engine(
-    database_url,
-    echo=False,  # Disable SQL logging in production (set to True for debugging)
-    future=True,  # Use SQLAlchemy 2.0 style
-    pool_pre_ping=True,  # Verify connections before using (prevents "operation in progress" errors)
-    pool_recycle=3600,  # Recycle connections after 1 hour
-    pool_size=5,  # Smaller pool for serverless (was 20, too large for serverless)
-    max_overflow=5,  # Smaller overflow for serverless (was 20)
-    pool_timeout=10,  # Shorter timeout for serverless (was 30)
-    # Don't connect on creation - lazy connection for serverless
-    connect_args={"server_settings": {"application_name": "aipolicyatlas"}},
-)
+# 
+# Note: Engine creation is wrapped in try/except to prevent crashes during import
+# The engine itself doesn't connect until first use, but creation can still fail
+try:
+    database_url = get_database_url()
+    # Create engine with minimal configuration for serverless
+    # asyncpg doesn't need connect_args - connection params come from the URL
+    # Reference: https://docs.sqlalchemy.org/en/20/core/engines.html#async-engine
+    engine = create_async_engine(
+        database_url,
+        echo=False,  # Disable SQL logging in production
+        future=True,  # Use SQLAlchemy 2.0 style
+        pool_pre_ping=True,  # Verify connections before using
+        pool_recycle=3600,  # Recycle connections after 1 hour
+        pool_size=5,  # Smaller pool for serverless
+        max_overflow=5,  # Smaller overflow for serverless
+        pool_timeout=10,  # Shorter timeout for serverless
+    )
+    print("✅ Database engine created successfully")
+except Exception as e:
+    print(f"⚠️  Database engine creation failed: {e}")
+    print(f"⚠️  Error type: {type(e).__name__}")
+    import traceback
+    traceback.print_exc()
+    engine = None  # Set to None so app can still start
 
 # Create async session factory
 # expire_on_commit=False allows accessing objects after commit
 # Reference: https://docs.sqlalchemy.org/en/20/orm/extensions/asyncio.html#using-async-sessionmaker
-async_session_maker = async_sessionmaker(
-    engine,
-    class_=AsyncSession,
-    expire_on_commit=False,
-)
+# Only create if engine was created successfully
+if engine is not None:
+    async_session_maker = async_sessionmaker(
+        engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+    )
+else:
+    # Create a dummy session maker that will fail gracefully
+    async_session_maker = None
+    print("⚠️  Session maker not created - database operations will fail")
 
 
 class Base(DeclarativeBase):
@@ -92,6 +114,9 @@ async def get_db() -> AsyncSession:
     Session is automatically closed after the request completes.
     Reference: https://fastapi.tiangolo.com/tutorial/dependencies/
     """
+    if async_session_maker is None:
+        raise RuntimeError("Database not configured. Check DATABASE_URL environment variable.")
+    
     async with async_session_maker() as session:
         try:
             yield session

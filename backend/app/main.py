@@ -9,7 +9,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.database import async_session_maker, engine
+from app.database import async_session_maker
 from app.routers import crawl, policies
 
 # Only import debug toolbar if debug mode is enabled
