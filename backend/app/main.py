@@ -9,12 +9,16 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.config import settings
 from app.database import async_session_maker, engine, Base
 from app.routers import crawl, policies
-from debug_toolbar.middleware import DebugToolbarMiddleware
+
+# Only import debug toolbar if debug mode is enabled
+if settings.DEBUG:
+    from debug_toolbar.middleware import DebugToolbarMiddleware
 
 # Lifespan context manager for startup/shutdown events
 # Reference: https://fastapi.tiangolo.com/advanced/events/
@@ -25,18 +29,30 @@ async def lifespan(app: FastAPI):
     # In production, use Alembic migrations instead
     # Reference: https://docs.sqlalchemy.org/en/20/core/metadata.html#sqlalchemy.schema.MetaData.create_all
     try:
+        # Try to connect to database (don't create tables in production - use migrations)
+        # This is just a connection test
         async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
-        print("✅ Database tables created successfully")
+            # Only create tables if in debug mode (development)
+            if settings.DEBUG:
+                await conn.run_sync(Base.metadata.create_all)
+                print("✅ Database tables created successfully")
+            else:
+                # Just test connection in production
+                await conn.execute(text("SELECT 1"))
+                print("✅ Database connection successful")
     except Exception as e:
         print(f"⚠️  Database connection failed: {e}")
         print("⚠️  API endpoints will work but database operations will fail")
-        print("⚠️  Make sure PostgreSQL is running and DATABASE_URL is correct in .env")
+        print("⚠️  Make sure DATABASE_URL is set correctly in Vercel environment variables")
+        # Don't fail startup - let the app run even if DB is unavailable
     
     yield
     
     # Shutdown: Close database engine
-    await engine.dispose()
+    try:
+        await engine.dispose()
+    except Exception:
+        pass  # Ignore errors during shutdown
 
 
 # Create FastAPI application instance
@@ -62,8 +78,12 @@ app.add_middleware(
 
 # Add debug toolbar middleware (only in debug mode)
 # Reference: https://pypi.org/project/fastapi-debug-toolbar/
-if app.debug:
-    app.add_middleware(DebugToolbarMiddleware)
+if app.debug and settings.DEBUG:
+    try:
+        from debug_toolbar.middleware import DebugToolbarMiddleware
+        app.add_middleware(DebugToolbarMiddleware)
+    except ImportError:
+        print("⚠️  Debug toolbar not available")
 
 # Include routers
 # Reference: https://fastapi.tiangolo.com/tutorial/bigger-applications/
