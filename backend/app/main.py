@@ -24,35 +24,33 @@ if settings.DEBUG:
 # Reference: https://fastapi.tiangolo.com/advanced/events/
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Handle application startup and shutdown."""
-    # Startup: Create database tables
-    # In production, use Alembic migrations instead
-    # Reference: https://docs.sqlalchemy.org/en/20/core/metadata.html#sqlalchemy.schema.MetaData.create_all
-    try:
-        # Try to connect to database (don't create tables in production - use migrations)
-        # This is just a connection test
-        async with engine.begin() as conn:
-            # Only create tables if in debug mode (development)
-            if settings.DEBUG:
-                await conn.run_sync(Base.metadata.create_all)
-                print("✅ Database tables created successfully")
-            else:
-                # Just test connection in production
-                await conn.execute(text("SELECT 1"))
-                print("✅ Database connection successful")
-    except Exception as e:
-        print(f"⚠️  Database connection failed: {e}")
-        print("⚠️  API endpoints will work but database operations will fail")
-        print("⚠️  Make sure DATABASE_URL is set correctly in Vercel environment variables")
-        # Don't fail startup - let the app run even if DB is unavailable
+    """
+    Handle application startup and shutdown.
+    
+    Note: In serverless environments (Vercel), lifespan events work but should be lightweight.
+    Database connections are established lazily on first request to avoid cold-start delays.
+    """
+    # Startup: Minimal initialization for serverless
+    # Don't block on database connection - it will be established on first request
+    print("🚀 FastAPI app starting...")
+    print(f"📋 API Prefix: {settings.API_PREFIX}")
+    print(f"🔧 Debug Mode: {settings.DEBUG}")
+    
+    # Skip database connection test during startup in serverless
+    # This prevents cold-start delays and timeouts
+    # Database connections will be established on first database operation
+    print("💡 Database connections will be established on first use")
     
     yield
     
-    # Shutdown: Close database engine
+    # Shutdown: Clean up database connections
+    # Note: In serverless, this may not always execute due to function termination
     try:
         await engine.dispose()
-    except Exception:
-        pass  # Ignore errors during shutdown
+        print("✅ Database engine closed")
+    except Exception as e:
+        print(f"⚠️  Error closing database engine: {e}")
+        # Ignore errors during shutdown
 
 
 # Create FastAPI application instance
